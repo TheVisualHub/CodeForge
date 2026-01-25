@@ -1,7 +1,6 @@
 # 🌀 Welcome to the CodeForge repository!
 
-![Antiboy Animation](https://raw.githubusercontent.com/TheVisualHub/VisualFactory/0177365b9419ad04d42b9be175beaeeeac54a554/assets/AntiboyGIF3.gif)
-
+![CodeForge Logo](https://raw.githubusercontent.com/TheVisualHub/VisualFactory/c884313766a110fd58ce37fe5ecbbef38e4f3ef1/assets/CodeForgeLOGO.gif)
 
 ## ✨ Overview 
 **CodeForge** contains **JavaScript** workflows designed for **HTML** environments.  
