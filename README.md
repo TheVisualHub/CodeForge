@@ -10,12 +10,12 @@ The workflows focus on interactive tools for simple 3D visualization that can be
 ## 👤 Author
 
 Workflow concept, design and refinement: **Gleb Novikov**  
-Implementation support: **Google Gemini (LLM-assisted development)**
+Implementation support: **Google Gemini**
 
 
 ## 🛠️ Available workflows
 - **Antibody Visualization**: robotics-inspired immunoglobulins with flexible Fab arms and thermal motion. Comes with a GUI demo, ready to be extended into bigger ideas.
-- **Origami Builder**: a lightweight playground for geometric topologies and exploring shape-shifting via morphing.
+- **Origami Builder**: a lightweight playground for geometric topologies and shape-shifting via morphing.
 
 ---
 
