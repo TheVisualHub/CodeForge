@@ -1,8 +1,6 @@
 # 🌀 Welcome to the CodeForge repository!
 
-<p align="center">
   <img src="https://raw.githubusercontent.com/TheVisualHub/VisualFactory/c884313766a110fd58ce37fe5ecbbef38e4f3ef1/assets/CodeForgeLOGO.gif" alt="CodeForge Logo">
-</p>
 
 
 
