@@ -1,4 +1,5 @@
 # 🌀 Welcome to the CodeForge repository!
+✨ Crafting AI-assisted digital transformations
 
 <img 
     src="https://raw.githubusercontent.com/TheVisualHub/VisualFactory/c884313766a110fd58ce37fe5ecbbef38e4f3ef1/assets/CodeForgeLOGO.gif" 
@@ -8,7 +9,7 @@
 
 
 
-## ✨ Overview 
+## 🌌 Overview 
 **CodeForge** contains **JavaScript** workflows designed for **HTML** environments.  
 The workflows focus on interactive tools for simple 3D visualization that can be easily integrated into web pages. The repository mainly serves as a sharing space for educational and exploratory tools developed with the assistance of large language models.
 
