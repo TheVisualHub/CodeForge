@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Immunoglobulin Flexibility Workflow (Domain Model with Backbone)</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.95);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --sidebar-width: 350px;
+            --controls-width: 280px;
+            --panel-margin: 2rem; /* 32px */
+            --handle-width: 40px;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* --- Left Sidebar (Educational) --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100%;
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            padding: var(--panel-margin);
+            box-sizing: border-box;
+            overflow-y: auto;
+            pointer-events: auto;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            position: absolute;
+            left: 0;
+            transition: left 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            /* Move panel off-screen by its width */
+            left: calc(-1 * var(--sidebar-width));
+        }
+
+        /* Toggle Button for Left Sidebar */
+        #toggle-sidebar {
+            position: absolute;
+            top: 1.5rem;
+            left: var(--sidebar-width); /* Start next to the sidebar */
+            width: var(--handle-width);
+            height: var(--handle-width);
+            padding: 0;
+            background: var(--panel-bg);
+            border-radius: 0 8px 8px 0;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 1px solid rgba(255,255,255,0.1); 
+            border-right: none;
+            cursor: pointer;
+            transition: left 0.3s ease, background 0.2s;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10; 
+            color: var(--accent);
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #toggle-sidebar.collapsed-handle {
+            left: 0; /* Move button to the far left edge of the viewport when sidebar is collapsed */
+        }
+
+        #chevron-icon {
+            transition: transform 0.3s ease;
+        }
+
+        #toggle-sidebar.collapsed-handle #chevron-icon {
+            transform: rotate(180deg); /* Point right when collapsed */
+        }
+        
+        /* --- Right Controls Panel --- */
+        .controls {
+            width: var(--controls-width);
+            background: var(--panel-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            pointer-events: auto;
+            border: 1px solid rgba(255,255,255,0.1);
+            
+            /* Positioning and Transition */
+            position: absolute;
+            top: var(--panel-margin);
+            right: var(--panel-margin);
+            transition: right 0.3s ease;
+        }
+
+        .controls.collapsed {
+            /* Move off screen by width, but shift back by the handle width to keep the handle visible */
+            right: calc(-1 * var(--controls-width) + var(--handle-width));
+        }
+
+        /* NEW Toggle Button for Right Controls */
+        #toggle-controls {
+            position: absolute;
+            top: 1.5rem;
+            /* Position button just to the left of the controls panel */
+            right: calc(var(--controls-width) + var(--panel-margin) + var(--handle-width)); 
+            width: var(--handle-width);
+            height: var(--handle-width);
+            padding: 0;
+            background: var(--panel-bg);
+            border-radius: 8px 0 0 8px; /* Rounded corners on the left side */
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: none; /* Only need border on the right */
+            cursor: pointer;
+            transition: right 0.3s ease, background 0.2s;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10; 
+            color: var(--accent);
+            box-shadow: -2px 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        #toggle-controls:hover {
+            background: rgba(30, 41, 59, 1);
+        }
+
+        #toggle-controls.collapsed-controls-handle {
+            right: 0; /* Move button flush with the far right edge of the viewport */
+        }
+
+        #controls-chevron-icon {
+            transition: transform 0.3s ease;
+            transform: rotate(180deg); /* Start pointing left */
+        }
+
+        #toggle-controls.collapsed-controls-handle #controls-chevron-icon {
+            transform: rotate(0deg); /* Point right when collapsed */
+        }
+
+
+        /* --- General UI Styles --- */
+
+        h1 {
+            font-size: 1.5rem;
+            margin-top: 0;
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 0.5rem;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin-top: 1.5rem;
+            color: #fff;
+        }
+
+        p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: var(--text-secondary);
+        }
+
+        .step-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .step-number {
+            font-weight: bold;
+            color: var(--accent);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .control-group {
+            margin-bottom: 1.2rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        input[type="range"] {
+            width: 100%;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .legend {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+        
+        #toggle-rotation {
+            background: #64748b;
+        }
+        
+        #toggle-rotation.active {
+            background: #0ea5e9;
+        }
+
+        /* Mobile Adjustments (Ensuring both sides are handled correctly) */
+        @media (max-width: 768px) {
+            /* Left Sidebar (Moves to bottom) */
+            .sidebar {
+                width: 100%;
+                height: 40%;
+                bottom: 0;
+                top: auto;
+                border-right: none;
+                border-top: 1px solid rgba(255,255,255,0.1);
+                left: 0; 
+            }
+            .sidebar.collapsed {
+                left: calc(-100% + var(--handle-width)); /* Hides most of it, leaving handle visible */
+            }
+            #toggle-sidebar {
+                left: 0;
+                top: auto;
+                bottom: 40%; /* Position above the collapsed bottom sidebar area */
+                border-radius: 8px 8px 0 0; 
+                transform: rotate(90deg); /* Rotate button for mobile view */
+                transform-origin: bottom left;
+                width: 60px;
+                height: 30px;
+            }
+            #toggle-sidebar.collapsed-handle {
+                left: 0;
+                bottom: 0;
+            }
+            #chevron-icon {
+                transform: rotate(90deg) !important; 
+            }
+            #toggle-sidebar.collapsed-handle #chevron-icon {
+                 transform: rotate(270deg) !important;
+            }
+
+            /* Right Controls (Moves to top-right) */
+            .controls {
+                top: 1rem;
+                right: 1rem;
+                width: auto;
+                min-width: 200px;
+                max-width: calc(100% - 2rem);
+            }
+            #toggle-controls {
+                display: none; /* Hide toggle on mobile to prevent layout conflict with simplified mobile layout */
+            }
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="tooltip" class="tooltip"></div>
+
+    <div id="ui-layer">
+        <!-- Educational Sidebar (LEFT) -->
+        <div class="sidebar" id="sidebar">
+            <h1>Simulation Workflow</h1>
+            <p>An example of a MD extension pipeline - see RoyalMD repository for a real workflow ;-)</p>
+
+            <h2>Pipeline</h2>
+            
+            <div class="step-card">
+                <span class="step-number">Step 1: Structure Retrieval</span>
+                <p>The workflow begins by retrieving crystal structures (e.g., PDB ID: 1IGT) from the Protein Data Bank.</p>
+            </div>
+
+            <div class="step-card">
+                <span class="step-number">Step 2: Topology & Solvation</span>
+                <p>We apply force fields and place the molecule in a water box with salt ions.</p>
+            </div>
+
+            <div class="step-card">
+                <span class="step-number">Step 3: MD Simulation</span>
+                <p>Molecular Dynamics (MD) calculates the forces on atoms over time. The key feature of IgG is the <strong>Hinge Region</strong>, allowing the Fab arms to search for antigens.</p>
+            </div>
+
+            <div class="step-card">
+                <span class="step-number">Step 4: Analysis</span>
+                <p>Calculate RMSD (Root Mean Square Deviation) and RMSF (Fluctuations) to quantify the flexibility shown in the 3D model here.</p>
+            </div>
+        </div>
+        
+        <!-- Toggle Button for Left Sidebar -->
+        <button id="toggle-sidebar">
+            <svg id="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
+
+        <!-- Toggle Button for Right Controls (NEW) -->
+        <button id="toggle-controls">
+            <svg id="controls-chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
+
+        <!-- Interactive Controls (RIGHT) -->
+        <div class="controls" id="controls">
+            <h3>Visualization Controls</h3>
+            
+            <div class="control-group">
+                <label for="flex-mode">Simulation Mode</label>
+                <button id="toggle-anim">Pause Thermal Motion</button>
+            </div>
+
+            <div class="control-group">
+                <label>Fab Arm Angle (Wagging)</label>
+                <input type="range" id="angle-slider" min="0" max="140" value="60">
+            </div>
+
+            <div class="control-group">
+                <label>Fab Rotation (Twist)</label>
+                <input type="range" id="twist-slider" min="-90" max="90" value="0">
+            </div>
+            
+            <div class="control-group">
+                <label>Global Y-Axis Rotation Speed</label>
+                <input type="range" id="rotation-speed-slider" min="0" max="0.1" step="0.001" value="0.01">
+                <button id="toggle-rotation">Start Automatic Rotation</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Thermal Motion Amplitude Scale</label>
+                <input type="range" id="amplitude-slider" min="0" max="2" step="0.1" value="1.0">
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item"><div class="dot" style="background: #4f46e5;"></div>Variable Domains (Royal Blue)</div>
+                <div class="legend-item"><div class="dot" style="background: #3b82f6;"></div>Constant Domains (Blue)</div>
+                <div class="legend-item"><div class="dot" style="background: #8b5cf6;"></div>Fc Region (Deep Purple)</div>
+                <div class="legend-item"><div class="dot" style="background: #fbbf24;"></div>Hinge Disulfides</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js Import Map for ES Modules -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- 1. Scene Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0f172a); 
+        scene.fog = new THREE.Fog(0x0f172a, 20, 100);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 10, 40);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // --- 2. Lighting ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const backLight = new THREE.DirectionalLight(0x3b82f6, 0.5); 
+        backLight.position.set(-10, 10, -20);
+        scene.add(backLight);
+
+        // --- 3. Molecular Construction Materials & Geometry ---
+        
+        const matVariableDomain = new THREE.MeshPhysicalMaterial({ 
+            color: 0x4f46e5, 
+            roughness: 0.3, metalness: 0.1, clearcoat: 0.5 
+        });
+        const matConstantDomain = new THREE.MeshPhysicalMaterial({ 
+            color: 0x3b82f6,
+            roughness: 0.3, metalness: 0.1, clearcoat: 0.5 
+        });
+        const matFc = new THREE.MeshPhysicalMaterial({ 
+            color: 0x8b5cf6,
+            roughness: 0.3, metalness: 0.1, clearcoat: 0.5 
+        });
+        const matHinge = new THREE.MeshStandardMaterial({ 
+            color: 0xfbbf24,
+            roughness: 0.6 
+        });
+        
+        const matBackbone = new THREE.MeshStandardMaterial({ 
+            color: 0xcccccc, 
+            transparent: true, 
+            opacity: 0.4,
+            roughness: 0.5
+        });
+
+        const DOMAIN_RADIUS = 1.6;
+        const DOMAIN_HEIGHT = 4.0;
+        const CONNECTOR_RADIUS = 0.4;
+
+        const antibodyGroup = new THREE.Group();
+        scene.add(antibodyGroup);
+
+        function createDomain(material, width = DOMAIN_RADIUS, height = DOMAIN_HEIGHT) {
+            const geometry = new THREE.CapsuleGeometry(width, height, 8, 16); 
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            return mesh;
+        }
+
+        function createConnector(p1, p2, material, radius = CONNECTOR_RADIUS) {
+            const direction = new THREE.Vector3().subVectors(p2, p1);
+            const length = direction.length();
+            
+            if (length < 0.1) return new THREE.Group(); 
+            
+            const cylinder = new THREE.CylinderGeometry(radius, radius, length, 8);
+            const mesh = new THREE.Mesh(cylinder, material);
+
+            mesh.position.addVectors(p1, direction.clone().multiplyScalar(0.5));
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+
+            mesh.castShadow = true;
+            return mesh;
+        }
+
+        // --- Fc Region ---
+        const fcGroup = new THREE.Group();
+        antibodyGroup.add(fcGroup);
+        
+        const p3L = new THREE.Vector3(-1.6, -8, 0);
+        const ch3L = createDomain(matFc); ch3L.position.copy(p3L); fcGroup.add(ch3L);
+        const p3R = new THREE.Vector3(1.6, -8, 0);
+        const ch3R = createDomain(matFc); ch3R.position.copy(p3R); fcGroup.add(ch3R);
+        const p2L = new THREE.Vector3(-1.6, -4, 0);
+        const ch2L = createDomain(matFc); ch2L.position.copy(p2L); fcGroup.add(ch2L);
+        const p2R = new THREE.Vector3(1.6, -4, 0);
+        const ch2R = createDomain(matFc); ch2R.position.copy(p2R); fcGroup.add(ch2R);
+
+        fcGroup.add(createConnector(p2L, p3L, matBackbone));
+        fcGroup.add(createConnector(p2R, p3R, matBackbone));
+
+        // --- Hinge Region ---
+        const hingeNode = new THREE.Group();
+        hingeNode.position.set(0, 0, 0); 
+        antibodyGroup.add(hingeNode);
+
+        const hingeGeo = new THREE.CylinderGeometry(0.5, 0.5, 3.2, 16);
+        hingeGeo.rotateZ(Math.PI / 2);
+        const hingeMesh = new THREE.Mesh(hingeGeo, matHinge);
+        hingeMesh.position.set(0, 0.5, 0);
+        hingeNode.add(hingeMesh);
+        
+        hingeNode.add(createConnector(p2L.clone().setY(0), new THREE.Vector3(-1.6, 0, 0), matBackbone));
+        hingeNode.add(createConnector(p2R.clone().setY(0), new THREE.Vector3(1.6, 0, 0), matBackbone));
+
+
+        // --- Fab Regions ---
+        function createFabArm(side) {
+            const fabPivot = new THREE.Group();
+            fabPivot.position.set(side * 1.6, 1, 0); 
+            
+            const pch1 = new THREE.Vector3(0, 3.0, 0);
+            const pcl = new THREE.Vector3(side * 1.8, 3.0, 1.0);
+            const pvh = new THREE.Vector3(0, 7.0, 0);
+            const pvl = new THREE.Vector3(side * 1.8, 7.0, 1.0);
+
+            const ch1 = createDomain(matConstantDomain); ch1.position.copy(pch1); fabPivot.add(ch1);
+            const cl = createDomain(matConstantDomain); cl.position.copy(pcl); fabPivot.add(cl);
+            const vh = createDomain(matVariableDomain); vh.position.copy(pvh); fabPivot.add(vh);
+            const vl = createDomain(matVariableDomain); vl.position.copy(pvl); fabPivot.add(vl);
+            
+            fabPivot.add(createConnector(pch1, pvh, matBackbone)); 
+            fabPivot.add(createConnector(pcl, pvl, matBackbone)); 
+            fabPivot.add(createConnector(pch1, pcl, matBackbone, 0.2)); 
+            fabPivot.add(createConnector(pvh, pvl, matBackbone, 0.2));
+            
+            const pHinge = new THREE.Vector3(0, 1, 0); 
+            fabPivot.add(createConnector(pHinge, pch1.clone().setY(0.5), matBackbone)); 
+            
+            return fabPivot;
+        }
+
+        const fabLeftPivot = createFabArm(-1);
+        hingeNode.add(fabLeftPivot);
+        const fabRightPivot = createFabArm(1);
+        hingeNode.add(fabRightPivot);
+
+
+        // --- 4. Logic & Controls ---
+
+        const state = {
+            isAnimating: true,
+            isRotating: false,
+            rotationSpeed: 0.01,
+            baseAngle: 60, 
+            baseTwist: 0,
+            amplitudeScale: 1.0, 
+            time: 0,
+            lastFrameTime: performance.now(),
+        };
+
+        // UI Elements
+        const sidebar = document.getElementById('sidebar'); 
+        const toggleButtonLeft = document.getElementById('toggle-sidebar'); 
+        const controlsPanel = document.getElementById('controls'); // Get the right panel
+        const toggleButtonRight = document.getElementById('toggle-controls'); // Get the new right toggle button
+        const btnAnim = document.getElementById('toggle-anim');
+        const btnRotation = document.getElementById('toggle-rotation');
+        const sliderAngle = document.getElementById('angle-slider');
+        const sliderTwist = document.getElementById('twist-slider');
+        const sliderAmplitude = document.getElementById('amplitude-slider'); 
+        const sliderRotationSpeed = document.getElementById('rotation-speed-slider');
+
+
+        // Event Listeners for Left Sidebar
+        toggleButtonLeft.addEventListener('click', () => { 
+            sidebar.classList.toggle('collapsed');
+            toggleButtonLeft.classList.toggle('collapsed-handle');
+        });
+        
+        // NEW Event Listener for Right Controls
+        toggleButtonRight.addEventListener('click', () => {
+            controlsPanel.classList.toggle('collapsed');
+            toggleButtonRight.classList.toggle('collapsed-controls-handle');
+        });
+
+        // Event Listeners for Simulation Controls
+        btnAnim.addEventListener('click', () => {
+            state.isAnimating = !state.isAnimating;
+            btnAnim.textContent = state.isAnimating ? "Pause Thermal Motion" : "Resume Thermal Motion";
+            btnAnim.style.background = state.isAnimating ? "var(--accent)" : "#64748b";
+        });
+
+        sliderAngle.addEventListener('input', (e) => {
+            state.baseAngle = parseFloat(e.target.value);
+        });
+
+        sliderTwist.addEventListener('input', (e) => {
+            state.baseTwist = parseFloat(e.target.value);
+        });
+        
+        sliderAmplitude.addEventListener('input', (e) => {
+            state.amplitudeScale = parseFloat(e.target.value);
+        });
+        
+        btnRotation.addEventListener('click', () => {
+            state.isRotating = !state.isRotating;
+            btnRotation.textContent = state.isRotating ? "Stop Automatic Rotation" : "Start Automatic Rotation";
+            btnRotation.classList.toggle('active', state.isRotating);
+            btnRotation.style.background = state.isRotating ? "var(--accent-hover)" : "#64748b";
+        });
+
+        sliderRotationSpeed.addEventListener('input', (e) => {
+            state.rotationSpeed = parseFloat(e.target.value);
+        });
+
+
+        // --- 5. Custom Mouse Controls (Orbit) ---
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let cameraAngleX = 0;
+        let cameraAngleY = 0;
+        const dist = 35;
+
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = {
+                    x: e.offsetX - previousMousePosition.x,
+                    y: e.offsetY - previousMousePosition.y
+                };
+
+                cameraAngleX -= deltaMove.x * 0.01;
+                cameraAngleY -= deltaMove.y * 0.01;
+
+                cameraAngleY = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, cameraAngleY));
+            }
+
+            previousMousePosition = {
+                x: e.offsetX,
+                y: e.offsetY
+            };
+        });
+
+        // Tooltip logic (Raycaster)
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const tooltip = document.getElementById('tooltip');
+
+        container.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            if(!isDragging) {
+                raycaster.setFromCamera(mouse, camera);
+                const interactableObjects = [];
+                antibodyGroup.traverse(obj => {
+                    if (obj.isMesh && obj.material !== matBackbone) {
+                        interactableObjects.push(obj);
+                    }
+                });
+
+                const intersects = raycaster.intersectObjects(interactableObjects, true);
+                
+                if (intersects.length > 0) {
+                    const obj = intersects[0].object;
+                    let text = "";
+                    if(obj.material === matVariableDomain) text = "Variable Domains (VH/VL) - Antigen Binding Site";
+                    else if(obj.material === matConstantDomain) text = "Constant Domains (CH1/CL)";
+                    else if(obj.material === matFc) text = "Fc Region Domains (CH2/CH3)";
+                    else if(obj.material === matHinge) text = "Hinge Region (Flexibility)";
+
+                    if(text) {
+                        tooltip.style.opacity = 1;
+                        tooltip.style.left = event.clientX + 15 + 'px';
+                        tooltip.style.top = event.clientY + 15 + 'px';
+                        tooltip.textContent = text;
+                    }
+                } else {
+                    tooltip.style.opacity = 0;
+                }
+            }
+        });
+
+
+        // --- 6. Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const currentTime = performance.now();
+            const delta = (currentTime - state.lastFrameTime) / 1000; 
+            state.lastFrameTime = currentTime;
+
+            // 1. Camera Orbit
+            const camX = dist * Math.sin(cameraAngleX) * Math.cos(cameraAngleY);
+            const camY = dist * Math.sin(cameraAngleY);
+            const camZ = dist * Math.cos(cameraAngleX) * Math.cos(cameraAngleY);
+            camera.position.set(camX, camY, camZ);
+            camera.lookAt(0, 0, 0);
+            
+            // 2. Global Rotation
+            if (state.isRotating) {
+                antibodyGroup.rotation.y += state.rotationSpeed * delta * 60; 
+            }
+
+            // 3. Thermal Motion / Flexibility Simulation
+            if (state.isAnimating) {
+                state.time += 0.02;
+            }
+
+            const breathingAmplitude = 13 * state.amplitudeScale;
+            const breathing = state.isAnimating ? Math.sin(state.time) * breathingAmplitude : 0; 
+            const currentAngle = state.baseAngle + breathing;
+            
+            const twistAmplitude = 6.5 * state.amplitudeScale;
+            const twist = state.isAnimating ? Math.cos(state.time * 0.7) * twistAmplitude : 0;
+            const currentTwist = state.baseTwist + twist;
+
+            const radAngle = THREE.MathUtils.degToRad(currentAngle / 2); 
+            const radTwist = THREE.MathUtils.degToRad(currentTwist);
+
+            fabLeftPivot.rotation.z = radAngle; 
+            fabLeftPivot.rotation.y = -radTwist * 0.5;
+
+            fabRightPivot.rotation.z = -radAngle;
+            fabRightPivot.rotation.y = radTwist * 0.5;
+
+            antibodyGroup.position.y = Math.sin(state.time * 0.5) * 0.5;
+            
+            renderer.render(scene, camera);
+        }
+
+        // Handle Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start
+        animate();
+
+    </script>
+</body>
+</html>
