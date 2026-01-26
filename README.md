@@ -21,7 +21,7 @@ Implementation support: **Google Gemini**
 
 ## 🛠️ Available workflows (click to play!)
 - [Antibody Visualization](https://thevisualhub.github.io/CodeForge/Workflows/antibody_visualizer.html) — robotics-inspired immunoglobulins with flexible Fab arms and thermal motion. Comes with a GUI demo, ready to be extended into bigger ideas.
-- **Origami Viewer**: a lightweight playground for geometric topologies and shape-shifting via morphing.
+- [Origami Viewer](https://thevisualhub.github.io/CodeForge/Workflows/origami_viewer.html) - a lightweight playground for geometric topologies and shape-shifting via morphing.
 
 
 ---
