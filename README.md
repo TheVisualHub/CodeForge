@@ -19,9 +19,10 @@ Workflow concept, design and refinement: **Gleb Novikov**
 Implementation support: **Google Gemini**
 
 
-## 🛠️ Available workflows
-- **Antibody Visualization**: robotics-inspired immunoglobulins with flexible Fab arms and thermal motion. Comes with a GUI demo, ready to be extended into bigger ideas.
+## 🛠️ Available workflows (click to play!)
+- [Antibody Visualization](https://thevisualhub.github.io/CodeForge/Workflows/antibody_visualizer.html) — robotics-inspired immunoglobulins with flexible Fab arms and thermal motion. Comes with a GUI demo, ready to be extended into bigger ideas.
 - **Origami Viewer**: a lightweight playground for geometric topologies and shape-shifting via morphing.
+
 
 ---
 
