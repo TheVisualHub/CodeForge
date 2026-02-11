@@ -22,7 +22,7 @@ Implementation support: **Google Gemini**
 ## 🔮 Available workflows ✨click to play✨
 - [Antibody Visualization](https://thevisualhub.github.io/CodeForge/Workflows/antibody_visualizer.html) — robotics-inspired immunoglobulins with flexible Fab arms and thermal motion.
 - [Origami Viewer](https://thevisualhub.github.io/CodeForge/Workflows/origami_viewer.html) — a lightweight playground for geometric topologies and shape-shifting via morphing.
-- [4D Protein Folding](https://thevisualhub.github.io/CodeForge/Workflows/4DProteinFolding.html) — a high-fidelity simulation engine to visualizes protein folding dynamics using kinetic Langevin physics. It features a real-time 4D folding interface where users can manipulate system temperature and stochasticity to observe the transition from random coils to native helical states.
+- [4D Protein Folding](https://thevisualhub.github.io/CodeForge/Workflows/4DProteinFolding.html) — a high-fidelity simulation engine to reveal protein folding dynamics. 4D interface allows to manipulate system temperature and stochasticity, visualizing the transition from random coils to native helical states.
 
 ---
 
