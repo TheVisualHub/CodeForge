@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Fluid Fire Engine - Morph Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
+        #canvas-container { width: 100vw; height: 100vh; cursor: move; }
+        
+        .glass-panel {
+            background: rgba(20, 0, 0, 0.9);
+            backdrop-filter: blur(15px);
+            border-right: 1px solid rgba(255, 0, 0, 0.4);
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 50;
+        }
+        
+        .collapsed { transform: translateX(calc(-100% + 40px)); }
+        
+        .toggle-container {
+            position: absolute;
+            top: 12px;
+            right: 0px;
+            z-index: 60;
+        }
+
+        .fire-toggle-btn {
+            background: rgba(40, 0, 0, 0.8);
+            border: 1px solid rgba(255, 68, 68, 0.5);
+            border-right: none;
+            border-radius: 4px 0 0 4px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #ff4444;
+            pointer-events: auto;
+        }
+
+        .fire-toggle-btn:hover {
+            background: rgba(255, 0, 0, 0.3);
+            box-shadow: -2px 0 15px rgba(255, 0, 0, 0.4);
+        }
+
+        input[type=range] { accent-color: #ff0000; }
+        .btn-red {
+            background: rgba(139, 0, 0, 0.3);
+            border: 1px solid #ff0000;
+            color: #ff4444;
+            padding: 8px;
+            font-size: 12px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-red:hover { background: rgba(255, 0, 0, 0.2); }
+        
+        .btn-auto {
+            border: 1px solid #ff4444;
+            color: #ff4444;
+            padding: 2px 8px;
+            font-size: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-auto.active {
+            background: #ff0000;
+            color: #000;
+            box-shadow: 0 0 10px #ff0000;
+        }
+        
+        .shape-indicator {
+            font-size: 0.75rem;
+            color: #ffaa00;
+            text-align: right;
+            margin-top: -5px;
+            margin-bottom: 5px;
+            height: 1rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-layer" class="fixed inset-0 pointer-events-none z-10">
+        <div id="side-menu" class="glass-panel h-full w-72 pointer-events-auto relative p-6 flex flex-col gap-6 text-red-500 overflow-y-auto">
+            
+            <div class="toggle-container">
+                <button class="fire-toggle-btn" onclick="toggleMenu()" title="Toggle Menu">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M12,2C12,2 8,6 8,9C8,11.21 9.79,13 12,13C14.21,13 16,11.21 16,9C16,6 12,2 12,2M12,18C13.66,18 15,16.66 15,16C15,15.25 14.73,14.56 14.29,14.03C15.9,14.9 17,16.58 17,18.5C17,21.54 14.54,24 11.5,24C8.46,24 6,21.54 6,18.5C6,16.11 7.53,14.07 9.67,13.31C9.24,14.06 9,14.94 9,15.88C9,17.6 10.34,19 12,19Z"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <h1 class="text-2xl font-bold tracking-widest border-b border-red-900 pb-2 pr-8">REAL FIRE SIMULATION<br><span class="text-xs opacity-60 text-orange-600">© TheVisualHub</span></h1>
+
+            <section class="space-y-4">
+                <div class="bg-red-900/20 p-3 rounded border border-red-900/50">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-sm font-bold text-white">SHAPE MORPH</label>
+                        <button id="autoShapeBtn" class="btn-auto" onclick="toggleAutoShape()">AUTO</button>
+                    </div>
+                    <input type="range" id="shapeMorph" min="0" max="4" step="0.01" value="0" class="w-full">
+                    <div id="shapeName" class="shape-indicator">PURE FIRE</div>
+                </div>
+
+                <label class="block text-sm">SHAPE-SHIFTING DELAY
+                    <input type="range" id="shapeDelay" min="500" max="8000" step="100" value="4000" class="w-full mt-2">
+                </label>
+
+                <label class="block text-sm">FLAME INTENSITY
+                    <input type="range" id="intensity" min="0.1" max="4.0" step="0.1" value="1.8" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">TURBULENCE
+                    <input type="range" id="turbulence" min="0" max="8" step="0.1" value="2.5" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">PRESSURE (LIFT)
+                    <input type="range" id="pressure" min="0.5" max="5.0" step="0.1" value="2.2" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">VORTICITY
+                    <input type="range" id="vorticity" min="0" max="15" step="0.5" value="5.0" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">SWIRL
+                    <input type="range" id="swirl" min="0" max="10" step="0.1" value="1.2" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">FIRE SCALE
+                    <input type="range" id="scale" min="0.5" max="4.0" step="0.1" value="2.5" class="w-full mt-2">
+                </label>
+                <label class="block text-sm">REFLECTION INTENSITY
+                    <input type="range" id="reflectionIntensity" min="0" max="12.5" step="0.1" value="6.0" class="w-full mt-2">
+                </label>
+            </section>
+
+            <section class="border-t border-red-900 pt-4 space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm">AUTO ROTATE</span>
+                    <input type="checkbox" id="autoRotate" class="w-5 h-5 pointer-events-auto">
+                </div>
+                <label class="block text-sm">ROTATION SPEED
+                    <input type="range" id="rotSpeed" min="0.001" max="0.05" step="0.001" value="0.005" class="w-full mt-2">
+                </label>
+                <button onclick="resetCamera()" class="btn-red w-full mt-4">Reset View</button>
+            </section>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script id="fireVertex" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+        void main() {
+            vUv = uv;
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPosition = worldPosition.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+    </script>
+
+    <script id="fireFragment" type="x-shader/x-fragment">
+        uniform float time;
+        uniform float intensity;
+        uniform float turbulence;
+        uniform float pressure;
+        uniform float vorticity;
+        uniform float swirl;
+        uniform float fireScale;
+        uniform float shapeMorph; 
+        
+        varying vec2 vUv;
+        varying vec3 vWorldPosition;
+
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+            const vec2  C = vec2(1.0/6.0, 1.0/3.0);
+            const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+            vec3 i  = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min( g.xyz, l.zxy );
+            vec3 i2 = max( g.xyz, l.zxy );
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+            i = mod289(i);
+            vec4 p = permute( permute( permute(
+                      i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+                    + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+                    + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+            float n_ = 0.142857142857;
+            vec3  ns = n_ * D.wyz - D.xzx;
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_ );
+            vec4 x = x_ *ns.x + ns.yyyy;
+            vec4 y = y_ *ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+            vec4 b0 = vec4( x.xy, y.xy );
+            vec4 b1 = vec4( x.zw, y.zw );
+            vec4 s0 = floor(b0)*2.0 + 1.0;
+            vec4 s1 = floor(b1)*2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+            vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+            vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+            vec3 p0 = vec3(a0.xy,h.x);
+            vec3 p1 = vec3(a0.zw,h.y);
+            vec3 p2 = vec3(a1.xy,h.z);
+            vec3 p3 = vec3(a1.zw,h.w);
+            vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+            p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+            vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3) ) );
+        }
+
+        float fbm(vec3 p) {
+            float v = 0.0;
+            float a = 0.5;
+            vec3 shift = vec3(100);
+            for (int i = 0; i < 5; ++i) {
+                v += a * snoise(p);
+                p = p * 2.02 + shift;
+                a *= 0.5;
+            }
+            return v;
+        }
+
+        void main() {
+            vec2 uv = vUv;
+            float buoyancy = time * pressure * 1.5;
+            vec3 warpCoord = vec3(uv * turbulence, buoyancy * 0.5);
+            float warp = snoise(warpCoord);
+            float angle = (time * swirl * 0.5) + (uv.y * vorticity * 0.2);
+            mat2 rot = mat2(cos(angle), sin(angle), -sin(angle), cos(angle));
+            vec2 centeredUv = (uv - vec2(0.5, 0.0));
+            vec2 distortedUv = rot * centeredUv + vec2(warp * 0.1);
+            vec3 flowP = vec3(distortedUv * vorticity, buoyancy);
+            float n = fbm(flowP);
+
+            // 0. STANDARD (Narrow Pillar)
+            float d_std = length(vec2(centeredUv.x * (4.5 / fireScale), (uv.y - 0.1) / (fireScale * 2.5)));
+
+            // 1. REAL HEART (Wide, Fatter Shape)
+            vec2 h = (uv - vec2(0.5, 0.42)); 
+            h.x *= 0.75; 
+            h.y *= 3.2;  
+            h.y -= sqrt(abs(h.x)) * 0.8; 
+            h /= (fireScale * 0.6);
+            float d_hrt = length(h) * 0.95;
+
+            // 2. ORIGAMI
+            vec2 o = abs(uv - vec2(0.5, 0.2));
+            float d_ori = (o.x * 2.5 + o.y) / (fireScale * 0.8);
+            
+            // 3. VORTEX
+            vec2 v = uv - vec2(0.5, 0.1);
+            float twist = sin(uv.y * 10.0 - time * 3.0) * (0.05 + 0.15 * uv.y);
+            float d_vor = length(vec2((v.x + twist) * (4.0 / fireScale), v.y / (fireScale * 2.0)));
+
+            // 4. DNA SPIRAL
+            float yPhase = uv.y * 15.0 - time * 3.0;
+            float helix1 = sin(yPhase) * 0.15;
+            float d_s1 = length(vec2( (uv.x - 0.5 + helix1) * (4.5 / fireScale), (uv.y - 0.1) / (fireScale * 2.0) ));
+            float helix2 = sin(yPhase + 3.14159) * 0.15;
+            float d_s2 = length(vec2( (uv.x - 0.5 + helix2) * (4.5 / fireScale), (uv.y - 0.1) / (fireScale * 2.0) ));
+            float d_spi = min(d_s1, d_s2);
+
+            float dist = d_std;
+            if (shapeMorph <= 1.0) {
+                dist = mix(d_std, d_hrt, shapeMorph);
+            } else if (shapeMorph <= 2.0) {
+                dist = mix(d_hrt, d_ori, shapeMorph - 1.0);
+            } else if (shapeMorph <= 3.0) {
+                dist = mix(d_ori, d_vor, shapeMorph - 2.0);
+            } else {
+                dist = mix(d_vor, d_spi, shapeMorph - 3.0);
+            }
+
+            float density = exp(-dist * 5.5) * (1.2 + n * intensity);
+            density *= pow(max(0.0, 1.0 - uv.y), 0.8);
+            float temp = clamp(density * intensity, 0.0, 1.0);
+            vec3 col = mix(vec3(0.4, 0.01, 0.0), vec3(1.0, 0.2, 0.0), smoothstep(0.1, 0.4, temp));
+            col = mix(col, vec3(1.0, 0.8, 0.1), smoothstep(0.4, 0.7, temp));
+            col = mix(col, vec3(1.0, 1.0, 0.95), smoothstep(0.7, 1.0, temp));
+            float ignition = exp(-length(vec2(centeredUv.x * 12.0, uv.y * 15.0)));
+            col += vec3(0.0, 0.2, 0.8) * ignition * intensity;
+            float alpha = smoothstep(0.15, 0.45, density);
+            float flicker = snoise(vec3(0.0, 0.0, time * 10.0)) * 0.1 + 0.9;
+            gl_FragColor = vec4(col * flicker, alpha);
+        }
+    </script>
+
+    <script>
+        let scene, camera, renderer, clock;
+        let fireLayers = [];
+        let controls = {
+            intensity: 1.8,
+            turbulence: 2.5,
+            pressure: 2.2,
+            vorticity: 5.0,
+            swirl: 1.2,
+            scale: 2.5,
+            reflectionIntensity: 6.0,
+            autoRotate: false,
+            rotSpeed: 0.005,
+            shapeMorph: 0.0,
+            shapeChangeDelay: 4000 // Milliseconds between target switches
+        };
+
+        let isAutoShape = false;
+        let autoShapeInterval = null;
+        let targetShapeVal = 0;
+        let pingPongDirection = 1; // 1 for forward, -1 for backward
+
+        function toggleAutoShape() {
+            isAutoShape = !isAutoShape;
+            const btn = document.getElementById('autoShapeBtn');
+            btn.classList.toggle('active');
+            
+            if (isAutoShape) {
+                targetShapeVal = Math.round(controls.shapeMorph); 
+                startAutoShapeInterval();
+            } else {
+                stopAutoShapeInterval();
+            }
+        }
+
+        function startAutoShapeInterval() {
+            stopAutoShapeInterval();
+            autoShapeInterval = setInterval(() => {
+                // Update target based on current direction
+                targetShapeVal += pingPongDirection;
+                
+                // Flip direction if we hit the boundaries (0 or 4)
+                if (targetShapeVal >= 4) {
+                    targetShapeVal = 4;
+                    pingPongDirection = -1;
+                } else if (targetShapeVal <= 0) {
+                    targetShapeVal = 0;
+                    pingPongDirection = 1;
+                }
+            }, controls.shapeChangeDelay);
+        }
+
+        function stopAutoShapeInterval() {
+            if (autoShapeInterval) {
+                clearInterval(autoShapeInterval);
+                autoShapeInterval = null;
+            }
+        }
+
+        const shapeNames = ["PURE FIRE", "BURNING HEART", "ORIGAMI FLAME", "VORTEX STORM", "FIRE HELIX"];
+        let camTheta = 0, camPhi = Math.PI / 2.5, camRadius = 8, isDragging = false, lastMousePos = { x: 0, y: 0 };
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050000);
+            scene.fog = new THREE.FogExp2(0x1a0000, 0.04);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            updateCameraPosition();
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            createRedRoom();
+            createFire();
+            clock = new THREE.Clock();
+            window.addEventListener('resize', onWindowResize);
+            setupUIListeners();
+            setupInteraction();
+            animate();
+        }
+
+        function createRedRoom() {
+            const floorGeo = new THREE.PlaneGeometry(30, 30);
+            const floorMat = new THREE.MeshPhongMaterial({ shininess: 80 });
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#111'; ctx.fillRect(0,0,256,256);
+            ctx.fillStyle = '#eee';
+            ctx.beginPath();
+            ctx.moveTo(0,128); ctx.lineTo(128,0); ctx.lineTo(256,128); ctx.lineTo(128,256); ctx.closePath(); ctx.fill();
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(12, 12);
+            floorMat.map = tex;
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+            const curtainGeo = new THREE.CylinderGeometry(15, 15, 20, 32, 1, true);
+            const curtainMat = new THREE.MeshStandardMaterial({ color: 0x660000, side: THREE.BackSide, roughness: 0.9 });
+            const curtains = new THREE.Mesh(curtainGeo, curtainMat);
+            curtains.position.y = 10;
+            scene.add(curtains);
+            const ambient = new THREE.AmbientLight(0x330000, 0.4);
+            scene.add(ambient);
+            const fireLight = new THREE.PointLight(0xff2200, controls.reflectionIntensity, 20);
+            fireLight.position.set(0, 2, 0);
+            scene.add(fireLight);
+            window.fireLight = fireLight;
+        }
+
+        function createFire() {
+            const fireGeo = new THREE.PlaneGeometry(4, 10, 32, 32);
+            const fireMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    intensity: { value: controls.intensity },
+                    turbulence: { value: controls.turbulence },
+                    pressure: { value: controls.pressure },
+                    vorticity: { value: controls.vorticity },
+                    swirl: { value: controls.swirl },
+                    fireScale: { value: controls.scale },
+                    shapeMorph: { value: controls.shapeMorph }
+                },
+                vertexShader: document.getElementById('fireVertex').textContent,
+                fragmentShader: document.getElementById('fireFragment').textContent,
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+            });
+            for(let i = 0; i < 12; i++) {
+                const mesh = new THREE.Mesh(fireGeo, fireMat);
+                mesh.rotation.y = (Math.PI / 12) * i;
+                mesh.position.y = 3.5;
+                scene.add(mesh);
+                fireLayers.push(mesh);
+            }
+        }
+
+        function setupUIListeners() {
+            ['intensity', 'turbulence', 'pressure', 'vorticity', 'swirl', 'scale'].forEach(id => {
+                document.getElementById(id).addEventListener('input', (e) => {
+                    const val = parseFloat(e.target.value);
+                    controls[id] = val;
+                    fireLayers.forEach(m => { m.material.uniforms[id === 'scale' ? 'fireScale' : id].value = val; });
+                });
+            });
+            
+            // Shape Change Delay slider listener
+            document.getElementById('shapeDelay').addEventListener('input', (e) => {
+                controls.shapeChangeDelay = parseInt(e.target.value);
+                if (isAutoShape) startAutoShapeInterval(); // Restart with new delay
+            });
+
+            const morphSlider = document.getElementById('shapeMorph');
+            morphSlider.addEventListener('input', (e) => {
+                const val = parseFloat(e.target.value);
+                controls.shapeMorph = val;
+                if(isAutoShape) {
+                    targetShapeVal = Math.round(val);
+                }
+                updateShapeUniforms();
+                updateShapeLabel(val);
+            });
+
+            document.getElementById('reflectionIntensity').addEventListener('input', (e) => {
+                controls.reflectionIntensity = parseFloat(e.target.value);
+            });
+            document.getElementById('autoRotate').addEventListener('change', (e) => {
+                controls.autoRotate = e.target.checked;
+            });
+            document.getElementById('rotSpeed').addEventListener('input', (e) => {
+                controls.rotSpeed = parseFloat(e.target.value);
+            });
+        }
+
+        function updateShapeUniforms() {
+            fireLayers.forEach(m => { m.material.uniforms.shapeMorph.value = controls.shapeMorph; });
+        }
+
+        function updateShapeLabel(val) {
+            const shapeLabel = document.getElementById('shapeName');
+            const index = Math.round(val);
+            if(index >= 0 && index < shapeNames.length) shapeLabel.innerText = shapeNames[index];
+        }
+
+        function setupInteraction() {
+            document.body.addEventListener('mousedown', (e) => {
+                if (e.target.closest('#side-menu')) return;
+                isDragging = true;
+                lastMousePos = { x: e.clientX, y: e.clientY };
+            });
+            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - lastMousePos.x, dy = e.clientY - lastMousePos.y;
+                camTheta -= dx * 0.01;
+                camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, camPhi + dy * 0.01));
+                lastMousePos = { x: e.clientX, y: e.clientY };
+                updateCameraPosition();
+            });
+            window.addEventListener('wheel', (e) => {
+                camRadius = Math.max(3, Math.min(25, camRadius + e.deltaY * 0.01));
+                updateCameraPosition();
+            }, { passive: false });
+        }
+
+        function updateCameraPosition() {
+            camera.position.x = camRadius * Math.sin(camPhi) * Math.sin(camTheta);
+            camera.position.y = camRadius * Math.cos(camPhi);
+            camera.position.z = camRadius * Math.sin(camPhi) * Math.cos(camTheta);
+            camera.lookAt(0, 2.5, 0);
+        }
+
+        function resetCamera() { camTheta = 0; camPhi = Math.PI / 2.5; camRadius = 8; updateCameraPosition(); }
+        function toggleMenu() { document.getElementById('side-menu').classList.toggle('collapsed'); }
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsed = clock.getElapsedTime();
+            
+            // SMOOTH TRANSITION LOGIC (The part you were likely missing)
+            if (isAutoShape) {
+                const diff = targetShapeVal - controls.shapeMorph;
+                // Move towards target smoothly
+                if (Math.abs(diff) > 0.001) {
+                    controls.shapeMorph += diff * 0.02; // Change 0.02 to adjust transition speed
+                    updateShapeUniforms();
+                    updateShapeLabel(controls.shapeMorph);
+                    // Sync the UI slider
+                    document.getElementById('shapeMorph').value = controls.shapeMorph;
+                }
+            }
+            
+            fireLayers.forEach(m => m.material.uniforms.time.value = elapsed);
+            if(window.fireLight) {
+                const flicker = Math.sin(elapsed * 18.0) * 0.3 + Math.cos(elapsed * 8.0) * 0.2;
+                window.fireLight.intensity = controls.reflectionIntensity * (1.1 + flicker);
+            }
+            if(controls.autoRotate && !isDragging) { camTheta += controls.rotSpeed; updateCameraPosition(); }
+            renderer.render(scene, camera);
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
