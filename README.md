@@ -21,6 +21,7 @@ Implementation support: **Google Gemini**
 
 ## 🔮 Available workflows ✨click to play✨
 - [Antibody Visualization](https://thevisualhub.github.io/CodeForge/Workflows/antibody_visualizer.html) — robotics-inspired immunoglobulins with flexible Fab arms and thermal motion.
+-  [3D Antibody Wizard](https://thevisualhub.github.io/CodeForge/Workflows/3DAntibodyWizard.html) — advanced robotics-inspired workflow for immunoglobulin visualization.
 - [Origami Viewer](https://thevisualhub.github.io/CodeForge/Workflows/origami_viewer.html) — a lightweight playground for geometric topologies and shape-shifting via morphing.
 - [3D Fire Simulation](https://thevisualhub.github.io/CodeForge/Workflows/realFIREmorph.html) — a high-fidelity kinetic fire simulation using Procedural Fluid Dynamics (Multi-Octave Simplex Noise & Blackbody Radiation physics) to recreate the fire movements and morphing without heavy computation of Navier-Stokes equations.
 - [4D Protein Folding](https://thevisualhub.github.io/CodeForge/Workflows/4DProteinFolding.html) — a high-fidelity simulation engine to reveal protein folding dynamics. 4D interface allows to manipulate system temperature and stochasticity, visualizing the transition from random coils to native helical states.
