@@ -588,19 +588,26 @@
             uiValRMSD.innerText = rmsdVal;
 
             const refEntropy = 37.37;
-            // Always update color based on Entropy Amplitude (smoothedEntropy) regardless of motion toggle
-            const colorLevel = smoothedEntropy; 
             
-            if (colorLevel <= refEntropy) {
-                const factor = colorLevel / refEntropy;
-                surfaceMaterial.color.lerpColors(colIcyBlue, colWhite, factor);
-            } else {
-                const heatFactor = (colorLevel - refEntropy) / (100 - refEntropy);
-                if (heatFactor <= 0.5) {
-                    surfaceMaterial.color.lerpColors(colWhite, colCoral, heatFactor * 2);
+            // COLOR LOGIC: 
+            // If thermalToggle is checked, color depends on smoothedEntropy.
+            // If thermalToggle is NOT checked, color stays physiological white.
+            if (uiThermal.checked) {
+                const colorLevel = smoothedEntropy; 
+                if (colorLevel <= refEntropy) {
+                    const factor = colorLevel / refEntropy;
+                    surfaceMaterial.color.lerpColors(colIcyBlue, colWhite, factor);
                 } else {
-                    surfaceMaterial.color.lerpColors(colCoral, colCinnabar, (heatFactor - 0.5) * 2);
+                    const heatFactor = (colorLevel - refEntropy) / (100 - refEntropy);
+                    if (heatFactor <= 0.5) {
+                        surfaceMaterial.color.lerpColors(colWhite, colCoral, heatFactor * 2);
+                    } else {
+                        surfaceMaterial.color.lerpColors(colCoral, colCinnabar, (heatFactor - 0.5) * 2);
+                    }
                 }
+            } else {
+                // Smoothly return to white when toggled off
+                surfaceMaterial.color.lerp(colWhite, 0.1);
             }
 
             if (thermalStrength > 0.001) {
