@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Antibody Wizard - ver 1.1b</title>
+    <title>3D Antibody Wizard - ver 1.1c</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -62,6 +62,13 @@
             color: #E34234;
             transform: scale(1.1);
         }
+
+        /* Fixed width for stat labels to prevent jitter */
+        .stat-val {
+            display: inline-block;
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -85,7 +92,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
                             </button>
                         </div>
-                        <span id="hingeVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px]">85°</span>
+                        <span id="hingeVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px] stat-val w-8">85°</span>
                     </div>
                     <input type="range" id="hingeAngle" min="60" max="115" value="85" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
                 </div>
@@ -98,7 +105,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
                             </button>
                         </div>
-                        <span id="swingVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px]">0°</span>
+                        <span id="swingVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px] stat-val w-8">0°</span>
                     </div>
                     <input type="range" id="swingAngle" min="-25" max="25" value="0" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
                 </div>
@@ -111,7 +118,7 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/></svg>
                             </button>
                         </div>
-                        <span id="elbowVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px]">15°</span>
+                        <span id="elbowVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px] stat-val w-8">15°</span>
                     </div>
                     <input type="range" id="elbowAngle" min="-40" max="40" value="15" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
                 </div>
@@ -135,7 +142,18 @@
                                 </button>
                             </div>
                         </div>
-                        <input type="range" id="thermalAmp" min="0" max="100" value="30" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
+                        <input type="range" id="thermalAmp" min="0" max="100" value="37.37" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
+                        <div id="entropyStats" class="text-[8.5px] font-mono text-[#8c7051] mt-2 whitespace-nowrap flex items-center justify-center gap-1.5 overflow-hidden">
+                            <!-- Fixed Layout Row - Centered -->
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-[#8c7051] opacity-70 flex-shrink-0" style="min-width: 14px; min-height: 14px; display: inline-block;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+                                <span>TEMP:<span id="valTemp" class="stat-val w-4">37</span>&deg;C</span>
+                            </div>
+                            <span class="opacity-30">|</span>
+                            <span>KE:<span id="valKE" class="stat-val w-8">0.92</span>kcal/mol</span>
+                            <span class="opacity-30">|</span>
+                            <span>RMSD:<span id="valRMSD" class="stat-val w-8">5.55</span>&Aring;</span>
+                        </div>
                     </div>
 
                     <div class="flex items-center justify-between">
@@ -167,7 +185,7 @@
                     <div>
                         <div class="flex justify-between text-[11px] font-black text-[#5c4a36] mb-2 tracking-tighter">
                             <label for="camAngles">NUMBER OF ANGLES</label>
-                            <span id="camAnglesVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px]">4</span>
+                            <span id="camAnglesVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px] stat-val w-4">4</span>
                         </div>
                         <input type="range" id="camAngles" min="2" max="12" value="4" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
                     </div>
@@ -182,7 +200,7 @@
                     <div>
                         <div class="flex justify-between text-[11px] font-black text-[#5c4a36] mb-2 tracking-tighter">
                             <label for="opacity">SURFACE OPACITY</label>
-                            <span id="opacityVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px]">45%</span>
+                            <span id="opacityVal" class="bg-white/40 px-2 py-0.5 rounded text-[10px] stat-val w-8">45%</span>
                         </div>
                         <input type="range" id="opacity" min="0" max="100" value="45" class="w-full h-1 bg-black/10 rounded-lg appearance-none cursor-pointer">
                     </div>
@@ -372,6 +390,11 @@
         const uiPanel = document.getElementById('controls');
         const uiToggle = document.getElementById('toggle-btn');
 
+        // Stats output elements
+        const uiValTemp = document.getElementById('valTemp');
+        const uiValKE = document.getElementById('valKE');
+        const uiValRMSD = document.getElementById('valRMSD');
+
         const uiAutoHinge = document.getElementById('autoHinge');
         const uiAutoSwing = document.getElementById('autoSwing');
         const uiAutoElbow = document.getElementById('autoElbow');
@@ -506,13 +529,17 @@
 
         // --- 8. Animation Loop ---
         let thermalStrength = 0; 
-        let smoothedEntropy = 30; // Internal smoothed state for entropy
+        let smoothedEntropy = 37.37; // Initialized to reference 37C
+
+        const colWhite = new THREE.Color(0xfdf2e9);
+        const colCoral = new THREE.Color(0xff7f50);
+        const colCinnabar = new THREE.Color(0xe34234);
+        const colIcyBlue = new THREE.Color(0x87ceeb); // Saturated icy blue
 
         function animate() {
             requestAnimationFrame(animate);
             const time = performance.now() * 0.001;
 
-            // Handle Autopilots
             if (hingeAutoActive) {
                 const min = parseFloat(uiHinge.min), max = parseFloat(uiHinge.max);
                 uiHinge.value = min + (max - min) * (Math.sin(time * 0.8 + hingePhase) * 0.5 + 0.5);
@@ -533,7 +560,6 @@
                 uiThermalAmp.value = min + (max - min) * (Math.sin(time * 0.5 + entropyPhase) * 0.5 + 0.5);
             }
 
-            // Camera Motion
             if (uiWildToggle.checked && camPosCurve) {
                 wildCamProgress += (parseFloat(uiCamSpeed.value) * 0.0001) / currentWaypointCount;
                 if (wildCamProgress > 1) wildCamProgress -= 1;
@@ -541,21 +567,43 @@
                 orbit.target.lerp(camTargetCurve.getPoint(wildCamProgress), 0.03);
             } 
             
-            // Auto Rotation
             if (uiAutoRot.checked) {
                 mainMolecule.rotation.y += parseFloat(uiRotSpeed.value) / 3000;
             }
 
-            // Thermal Motion (Smoothing implementation)
             const targetStrength = uiThermal.checked ? 1.0 : 0.0;
             thermalStrength += (targetStrength - thermalStrength) * 0.1;
 
-            // Damping the entropy slider input to avoid high-frequency jitter (lagging feel)
             const targetEntropy = parseFloat(uiThermalAmp.value);
             smoothedEntropy += (targetEntropy - smoothedEntropy) * 0.08; 
 
+            // Calculate stats
+            const tempVal = Math.round(smoothedEntropy * 0.99);
+            const keVal = ((parseFloat(tempVal) + 273.15) * 0.00298).toFixed(2);
+            const rmsdVal = (smoothedEntropy * 0.15).toFixed(2);
+            
+            // Update individual stat elements to prevent line shifting
+            uiValTemp.innerText = tempVal;
+            uiValKE.innerText = keVal;
+            uiValRMSD.innerText = rmsdVal;
+
+            const refEntropy = 37.37;
+            // Always update color based on Entropy Amplitude (smoothedEntropy) regardless of motion toggle
+            const colorLevel = smoothedEntropy; 
+            
+            if (colorLevel <= refEntropy) {
+                const factor = colorLevel / refEntropy;
+                surfaceMaterial.color.lerpColors(colIcyBlue, colWhite, factor);
+            } else {
+                const heatFactor = (colorLevel - refEntropy) / (100 - refEntropy);
+                if (heatFactor <= 0.5) {
+                    surfaceMaterial.color.lerpColors(colWhite, colCoral, heatFactor * 2);
+                } else {
+                    surfaceMaterial.color.lerpColors(colCoral, colCinnabar, (heatFactor - 0.5) * 2);
+                }
+            }
+
             if (thermalStrength > 0.001) {
-                // Optimized limits to prevent domain disconnection
                 const maxDisplacement = 0.45; 
                 const rawAmpPos = (smoothedEntropy / 166) * thermalStrength;
                 const ampPos = Math.min(rawAmpPos, maxDisplacement); 
