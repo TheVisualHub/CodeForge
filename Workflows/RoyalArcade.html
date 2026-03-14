@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="format-detection" content="address=no">
+    <title>Royal Arcade - ver 1.3</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&display=swap');
+        body {
+            font-family: 'JetBrains+Mono', monospace;
+            margin: 0;
+            overflow-x: hidden;
+            background-color: #050514;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useCallback, useEffect } = React;
+
+        // --- CUSTOM SVG ICONS ---
+        const Icons = {
+            Play: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            ),
+            Lock: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            ),
+            Unlock: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>
+            ),
+            Music: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+            ),
+            Crown: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path></svg>
+            ),
+            Square: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+            ),
+            Activity: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            ),
+            Zap: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            ),
+            ListMusic: ({ className }) => (
+                <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15V6"></path><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"></path><path d="M12 12H3"></path><path d="M16 6H3"></path><path d="M12 18H3"></path></svg>
+            )
+        };
+
+        // --- MUSIC THEORY CONSTANTS ---
+        const KEYS = ['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'];
+
+        const SCALE_INTERVALS = {
+            major: [0, 2, 4, 5, 7, 9, 11],
+            naturalMinor: [0, 2, 3, 5, 7, 8, 10],
+            harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
+            melodicMinor: [0, 2, 3, 5, 7, 9, 11]
+        };
+
+        const INTERVAL_LABELS = {
+            major: ['1', '2', '3', '4', '5', '6', '7'],
+            naturalMinor: ['1', '2', 'b3', '4', '5', 'b6', 'b7'],
+            harmonicMinor: ['1', '2', 'b3', '4', '5', 'b6', '7'],
+            melodicMinor: ['1', '2', 'b3', '4', '5', '6', '7']
+        };
+
+        const PROGRESSION_BANKS = {
+            major: [[0, 4, 5, 3], [1, 4, 0, 5], [0, 5, 3, 4], [5, 3, 0, 4], [0, 3, 4, 3], [0, 2, 5, 3], [3, 4, 2, 5]],
+            naturalMinor: [[0, 5, 2, 6], [0, 3, 4, 0], [0, 5, 3, 4], [5, 6, 0, 0], [0, 6, 5, 6], [0, 4, 5, 3], [3, 4, 2, 5]],
+            harmonicMinor: [[0, 3, 4, 0], [0, 5, 4, 0], [0, 1, 4, 0], [3, 5, 4, 0], [0, 5, 3, 4], [0, 5, 1, 4], [3, 4, 2, 5]],
+            melodicMinor: [[0, 3, 4, 0], [0, 1, 4, 5], [0, 4, 5, 1], [0, 3, 5, 6], [3, 4, 2, 5]]
+        };
+
+        const STYLES = {
+            rock: { bpm: 124, name: 'ROCK', kick: [0, 8], snare: [4, 12], hats: [0, 2, 4, 6, 8, 10, 12, 14], chord: [0] },
+            pop: { bpm: 118, name: 'POP', kick: [0, 4, 8, 12], snare: [4, 12], hats: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], chord: [0, 8] },
+            funk: { bpm: 105, name: 'FUNK', kick: [0, 2, 6, 10], snare: [4, 12, 15], hats: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], chord: [0, 3, 7, 10, 13] },
+            reggae: { bpm: 82, name: 'REGGAE', kick: [0, 8], snare: [4, 12], hats: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], chord: [2, 6, 10, 14] },
+            swing: { bpm: 130, name: 'SWING', kick: [0, 4, 8, 12], snare: [4, 12], hats: [0, 2, 3, 6, 7, 10, 11, 14, 15], chord: [0, 6, 12] }
+        };
+
+        function App() {
+            const [activeKeyIdx, setActiveKeyIdx] = useState(0);
+            const [mode, setMode] = useState(0); 
+            const [minorType, setMinorType] = useState('naturalMinor'); 
+            const [complexity, setComplexity] = useState(0);
+            const [isSpinning, setIsSpinning] = useState(false);
+            const [rouletteRot, setRouletteRot] = useState(0);
+            const [playingDegree, setPlayingDegree] = useState(null);
+            const [playingSlotIdx, setPlayingSlotIdx] = useState(null);
+            const [flashingDegree, setFlashingDegree] = useState(null); // Tracks the rhythmic blue blink in the internal circle
+            const [ballRotation, setBallRotation] = useState(0);
+            const [isGroovePlaying, setIsGroovePlaying] = useState(false);
+            const [currentStyle, setCurrentStyle] = useState('rock');
+            const [isArpeggioActive, setIsArpeggioActive] = useState(false);
+            // refined LED:
+            const [ledStates, setLedStates] = useState({}); 
+            const LED_COLORS = ['#F7E7CE', '#DAA520', '#E34234', '#602080', '#E7BCB4']; // for external 12 key circle
+            const BLUE_SHADES = [
+                '#1E3A8A', // Deep Blue
+                '#1D4ED8', // Royal Blue
+                '#2563EB', // Blue
+                '#3B82F6', // Bright Blue
+                '#60A5FA', // Sky Blue
+                '#93C5FD', // Light Blue
+                '#BFDBFE'  // Powder Blue
+            ];
+            // LEDs for scale mode
+            const KEY_THEMES = {
+                major: [
+                    '#FFFFFF', // C: Clear white
+                    '#FFF44F', // G: Lemon Yellow
+                    '#50C878', // D: Emerald
+                    '#FFBF00', // A: Amber
+                    '#FFD700', // E: Golden
+                    '#40E0D0', // B: Turquoise
+                    '#4169E1', // F#: Royal Blue
+                    '#FF66CC', // Db: Rose
+                    '#800080', // Ab: Purple
+                    '#DC143C', // Eb: Crimson Red
+                    '#A8335D', // Bb: Purple-Red
+                    '#87CEEB', // F: Sky Blue
+                ],
+                minor: [
+                    '#36454F', // C: Charcoal
+                    '#665D1E', // G: Dark amber
+                    '#228B22', // D: Forest green
+                    '#CC5500', // A: Burnt orange
+                    '#808000', // E: Olive
+                    '#008B8B', // B: Dark turquoise
+                    '#000080', // F#: Navy blue
+                    '#E0115F', // C#: Deep rose
+                    '#9400D3', // Ab: Dark violet
+                    '#800020', // Eb: Burgundy
+                    '#A8335D', // Bb: Purple-red
+                    '#4682B4', // F: Steel blue
+                ]
+            };
+
+            const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+
+            const setLedStatesRef = useRef(null);
+            
+            const [slots, setSlots] = useState([
+                { degree: 0, locked: false },
+                { degree: 4, locked: false },
+                { degree: 5, locked: false },
+                { degree: 3, locked: false }
+            ]);
+
+            const audioCtxRef = useRef(null);
+            const schedulerRef = useRef(null);
+            const nextNoteTimeRef = useRef(0);
+            const currentBeatRef = useRef(0);
+
+            // added to fix play all bug
+            const scaleTimersRef = useRef([]);
+            
+            const slotsRef = useRef(slots);
+            const activeKeyIdxRef = useRef(activeKeyIdx);
+            const activeScaleKeyRef = useRef(mode === 0 ? 'major' : minorType);
+            const complexityRef = useRef(complexity);
+            const styleRef = useRef(currentStyle);
+            const arpeggioRef = useRef(isArpeggioActive);
+
+            useEffect(() => {
+                slotsRef.current = slots;
+                activeKeyIdxRef.current = activeKeyIdx;
+                activeScaleKeyRef.current = mode === 0 ? 'major' : minorType;
+                complexityRef.current = complexity;
+                styleRef.current = currentStyle;
+                arpeggioRef.current = isArpeggioActive;
+                setLedStatesRef.current = setLedStates;
+            }, [slots, activeKeyIdx, mode, minorType, complexity, currentStyle, isArpeggioActive, setLedStates]);
+
+            const activeScaleKey = mode === 0 ? 'major' : minorType;
+
+            useEffect(() => {
+                let frameId;
+                const animateBall = () => {
+                    setBallRotation(prev => prev + (isSpinning ? 12 : 1.5));
+                    frameId = requestAnimationFrame(animateBall);
+                };
+                frameId = requestAnimationFrame(animateBall);
+                return () => cancelAnimationFrame(frameId);
+            }, [isSpinning]);
+
+            useEffect(() => {
+                // This only runs when the Key or Scale Type changes
+                if (scaleTimersRef.current) {
+                    scaleTimersRef.current.forEach(timerId => clearTimeout(timerId));
+                    scaleTimersRef.current = [];
+                }
+            }, [activeKeyIdx, mode, minorType]);
+
+            const initAudio = () => {
+                if (!audioCtxRef.current) {
+                    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume();
+            };
+
+            const playKick = (ctx, time) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(150, time);
+                osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+                gain.gain.setValueAtTime(1, time);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4);
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.start(time); osc.stop(time + 0.4);
+            };
+
+            const playSnare = (ctx, time, vol = 0.3) => {
+                const noise = ctx.createBufferSource();
+                const bufferSize = ctx.sampleRate * 0.2;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                noise.buffer = buffer;
+                const noiseFilter = ctx.createBiquadFilter();
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.value = 1000;
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(vol, time);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+                noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(ctx.destination);
+                noise.start(time);
+                const osc = ctx.createOscillator();
+                const oscGain = ctx.createGain();
+                osc.frequency.setValueAtTime(180, time);
+                oscGain.gain.setValueAtTime(vol * 0.6, time);
+                oscGain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+                osc.connect(oscGain); oscGain.connect(ctx.destination);
+                osc.start(time); osc.stop(time + 0.2);
+            };
+
+            const playHiHat = (ctx, time, volume = 0.05) => {
+                const bufferSize = ctx.sampleRate * 0.05;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 7000;
+                const gain = ctx.createGain();
+                gain.gain.setValueAtTime(volume, time);
+                gain.gain.exponentialRampToValueAtTime(0.001, time + 0.04);
+                source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+                source.start(time);
+            };
+
+            const getNoteName = (keyIdx, degree) => {
+                const semitoneMap = { 'C':0, 'G':7, 'D':2, 'A':9, 'E':4, 'B':11, 'F#':6, 'Db':1, 'Ab':8, 'Eb':3, 'Bb':10, 'F':5 };
+                const sharpNotes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const flatNotes = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+                
+                const currentKey = KEYS[keyIdx];
+                const isSharpKey = mode === 0 
+                    ? ['G', 'D', 'A', 'E', 'B', 'F#'].includes(currentKey)
+                    : ['A', 'E', 'B', 'F#', 'Db'].includes(currentKey);
+                const notes = isSharpKey ? sharpNotes : flatNotes;
+                
+                const keyRoot = semitoneMap[currentKey];
+                const interval = SCALE_INTERVALS[activeScaleKey][degree % 7];
+                let note = notes[(keyRoot + interval) % 12];
+
+                // --- THEORETICAL ENHARMONIC OVERRIDES ---
+                if (isSharpKey) {
+                    // E# appears as F
+                    if (note === 'F' && ['F#', 'Db'].includes(currentKey)) note = 'E#';
+                    // B# appears as C
+                    if (note === 'C' && ['Db'].includes(currentKey)) note = 'B#';
+                } else {
+                    // Cb appears as B
+                    if (note === 'B' && ['Ab', 'Eb', 'Bb', 'Db'].includes(currentKey)) note = 'Cb';
+                    // Fb appears as E
+                    if (note === 'E' && ['Ab', 'Eb', 'Db'].includes(currentKey)) note = 'Fb';
+                }
+                
+                const activeThemeColor = mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx];
+
+                return note;
+            };
+
+        const getKeySignature = (keyIdx, isMinor) => {
+            const notes = [0,1,2,3,4,5,6].map(d => getNoteName(keyIdx, d));
+            const currentKey = KEYS[keyIdx];
+            
+            // 1. Identify the "Home Direction" of the key
+            const isSharpKey = !isMinor 
+                ? ['G', 'D', 'A', 'E', 'B', 'F#'].includes(currentKey)
+                : ['A', 'E', 'B', 'F#', 'Db'].includes(currentKey); // Db is C#m (4#)
+
+            let count = 0;
+
+            notes.forEach(n => {
+                if (isSharpKey) {
+                    // Count visible sharps
+                    if (n.includes('#')) count++;
+                    // Count "Hidden" sharps (E# and B# appearing as F and C)
+                    if (n === 'F' && (currentKey === 'F#' || currentKey === 'Db')) count++;
+                    if (n === 'C' && currentKey === 'Db') count++;
+                } else {
+                    // Count visible flats
+                    if (n.includes('b')) count++;
+                    // Count "Hidden" flats (Cb and Fb appearing as B and E)
+                    if (n === 'B' && ['Ab', 'Eb', 'Bb', 'Db'].includes(currentKey)) count++;
+                    if (n === 'E' && ['Ab', 'Eb', 'Db'].includes(currentKey)) count++;
+                }
+            });
+
+            if (count === 0) return "0";
+            return isSharpKey ? `${count}#` : `${count}b`;
+        };
+
+            const playChord = useCallback((degree, keyIdx = activeKeyIdx, slotIdx = null, customTime = null, short = false, octaveOffset = 0) => {
+                initAudio();
+                const ctx = audioCtxRef.current;
+                if (!ctx) return;
+                const t = customTime || ctx.currentTime;
+                const semitoneMap = { 'C':0, 'G':7, 'D':2, 'A':9, 'E':4, 'B':11, 'F#':6, 'Db':1, 'Ab':8, 'Eb':3, 'Bb':10, 'F':5 };
+                
+                // UI Visuals for manual clicks
+                if (!customTime) {
+                    setPlayingDegree(degree % 7);
+                    setTimeout(() => setPlayingDegree(null), 800);
+                }
+                
+                const currentKey = customTime !== null ? activeKeyIdxRef.current : keyIdx;
+                const currentScaleKey = customTime !== null ? activeScaleKeyRef.current : activeScaleKey;
+                const currentComplexity = customTime !== null ? complexityRef.current : complexity;
+                const isArp = customTime !== null ? arpeggioRef.current : isArpeggioActive;
+                
+                const keyRoot = semitoneMap[KEYS[currentKey]];
+                const scale = SCALE_INTERVALS[currentScaleKey];
+
+                const buildDegrees = [degree];
+                if (currentComplexity >= 0) buildDegrees.push(degree + 2, degree + 4);
+                if (currentComplexity >= 1) buildDegrees.push(degree + 6);
+                if (currentComplexity >= 2) buildDegrees.push(degree + 8);
+
+                const semitones = buildDegrees.map(d => {
+                    const idx = d % 7;
+                    const octaveShift = Math.floor(d / 7);
+                    return scale[idx] + (octaveShift * 12);
+                });
+
+                const baseFreq = 130.81 * Math.pow(2, (keyRoot + (octaveOffset * 12)) / 12); 
+                const maxGain = currentComplexity === 2 ? 0.05 : 0.07; 
+                const stagger = isArp ? 0.12 : 0.015;
+
+                semitones.forEach((semitone, i) => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    const filter = ctx.createBiquadFilter();
+                    osc.type = 'sawtooth';
+                    
+                    const noteTime = t + (i * stagger);
+                    osc.frequency.setValueAtTime(baseFreq * Math.pow(2, semitone / 12), noteTime);
+                    
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(2000, noteTime);
+                    filter.frequency.exponentialRampToValueAtTime(300, noteTime + (short ? 0.2 : 1.0));
+                    
+                    gain.gain.setValueAtTime(0, noteTime);
+                    gain.gain.linearRampToValueAtTime(maxGain, noteTime + 0.02); 
+                    gain.gain.exponentialRampToValueAtTime(0.001, noteTime + (short ? 0.4 : 1.5));
+                    
+                    osc.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
+                    osc.start(noteTime); osc.stop(noteTime + 1.8);
+                });
+            }, [activeKeyIdx, activeScaleKey, complexity, isArpeggioActive]);
+
+            const scheduleNote = (beatNumber, time) => {
+                const ctx = audioCtxRef.current;
+                const style = STYLES[styleRef.current];
+                const step = beatNumber % 16;
+
+                // 1. External Sparkle (Keep as is)
+                if (setLedStatesRef.current) {
+                    const randomKeyIdx = Math.floor(Math.random() * 12);
+                    const randomColor = LED_COLORS[Math.floor(Math.random() * LED_COLORS.length)];
+                    setLedStatesRef.current(prev => ({ ...prev, [randomKeyIdx]: randomColor }));
+                    setTimeout(() => {
+                        setLedStatesRef.current(prev => {
+                            const newState = { ...prev };
+                            delete newState[randomKeyIdx];
+                            return newState;
+                        });
+                    }, 150);
+                }
+
+                // 2. Audio Triggers
+                if (style.kick.includes(step)) playKick(ctx, time);
+                if (style.snare.includes(step)) playSnare(ctx, time, 0.3);
+                if (style.hats.includes(step)) playHiHat(ctx, time, 0.05);
+
+                // 3. Chord & Internal Blue LED Sync
+                if (style.chord.includes(step)) {
+                    const currentSlotIdx = Math.floor(beatNumber / 16) % 4;
+                    const slot = slotsRef.current[currentSlotIdx];
+                    const degreeToFlash = slot.degree;
+                    
+                    // SYNC UI TO AUDIO CLOCK:
+                    const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
+                    
+                    setTimeout(() => {
+                        setPlayingSlotIdx(currentSlotIdx);
+                        setFlashingDegree(degreeToFlash); // Start the blink
+
+                        // Clear the blink after 150ms to create the rhythmic pulse
+                        setTimeout(() => {
+                            setFlashingDegree(null);
+                        }, 150);
+                    }, delayMs);
+
+                    playChord(slot.degree, activeKeyIdxRef.current, currentSlotIdx, time, true);
+                }
+            };
+
+            const toggleGroove = () => {
+                initAudio();
+                if (isGroovePlaying) {
+                    setIsGroovePlaying(false);
+                    if (schedulerRef.current) clearInterval(schedulerRef.current);
+                    return;
+                }
+                setIsGroovePlaying(true);
+                nextNoteTimeRef.current = audioCtxRef.current.currentTime + 0.1;
+                currentBeatRef.current = 0;
+                schedulerRef.current = setInterval(() => {
+                    const style = STYLES[styleRef.current];
+                    const secondsPerStep = (60 / style.bpm) / 4; 
+                    const lookahead = 0.1;
+                    while (nextNoteTimeRef.current < audioCtxRef.current.currentTime + lookahead) {
+                        scheduleNote(currentBeatRef.current, nextNoteTimeRef.current);
+                        nextNoteTimeRef.current += secondsPerStep;
+                        currentBeatRef.current++;
+                    }
+                }, 25);
+            };
+
+            const handleSpin = () => {
+                if (isSpinning) return;
+                initAudio();
+                setIsSpinning(true);
+                setRouletteRot(prev => prev + 1800 + Math.floor(Math.random() * 360));
+                let spins = 0;
+                const spinInterval = setInterval(() => {
+                    setSlots(prev => prev.map(slot => slot.locked ? slot : { ...slot, degree: Math.floor(Math.random() * 7) }));
+                    spins++;
+                    if (spins > 20) clearInterval(spinInterval);
+                }, 100);
+                setTimeout(() => {
+                    clearInterval(spinInterval);
+                    const progList = PROGRESSION_BANKS[activeScaleKey];
+                    const randomProg = progList[Math.floor(Math.random() * progList.length)];
+                    setSlots(prev => prev.map((slot, i) => slot.locked ? slot : { ...slot, degree: randomProg[i] }));
+                    setIsSpinning(false);
+                    playChord(randomProg[0] || 0);
+                }, 2500);
+            };
+
+            const toggleLock = (index) => {
+                setSlots(prev => prev.map((slot, i) => i === index ? { ...slot, locked: !slot.locked } : slot));
+            };
+
+            const playSequence = () => {
+                initAudio();
+                slots.forEach((slot, i) => {
+                    setTimeout(() => playChord(slot.degree, activeKeyIdx, i), i * 1400); 
+                });
+            };
+
+            const playScaleChords = () => {
+                initAudio();
+                
+                // Clear existing timers
+                scaleTimersRef.current.forEach(timer => clearTimeout(timer));
+                scaleTimersRef.current = [];
+
+                // ACTIVATE LED THEME
+                setIsAutoPlaying(true);
+
+                const range = [0, 1, 2, 3, 4, 5, 6, 7]; 
+                range.forEach((degree, i) => {
+                    const timerId = setTimeout(() => {
+                        const isOctave = degree === 7;
+                        playChord(isOctave ? 0 : degree, activeKeyIdx, null, null, false, isOctave ? 1 : 0);
+                        
+                        // DEACTIVATE LED THEME after the last note (degree 7)
+                        if (isOctave) {
+                            setTimeout(() => setIsAutoPlaying(false), 1400);
+                        }
+                    }, i * 1400);
+                    
+                    scaleTimersRef.current.push(timerId);
+                });
+            };
+
+            const getChordDetails = (keyIdx, degree, comp) => {
+                const root = getNoteName(keyIdx, degree);
+                const scale = SCALE_INTERVALS[activeScaleKey];
+                const getAbsSemitones = (d) => scale[d % 7] + (Math.floor(d / 7) * 12);
+                const rootAbs = getAbsSemitones(degree);
+                
+                const thirdInt = getAbsSemitones(degree + 2) - rootAbs;
+                const fifthInt = getAbsSemitones(degree + 4) - rootAbs;
+                const seventhInt = getAbsSemitones(degree + 6) - rootAbs;
+                const ninthIntRaw = getAbsSemitones(degree + 8) - rootAbs;
+                const isMinorNinth = ninthIntRaw === 13;
+
+                let type = "";
+                let baseRoman = ["I", "II", "III", "IV", "V", "VI", "VII"][degree % 7];
+
+                if (thirdInt === 4) { 
+                    if (fifthInt === 7) type = "";
+                    else if (fifthInt === 8) { type = "aug"; baseRoman += "+"; }
+                    else if (fifthInt === 6) type = "b5";
+                } else { 
+                    baseRoman = baseRoman.toLowerCase();
+                    if (fifthInt === 7) type = "m";
+                    else if (fifthInt === 6) { type = "dim"; baseRoman += "°"; }
+                }
+
+                if (comp === 0) return { label: root + type, roman: baseRoman };
+
+                let sevType = "";
+                let romanSev = "7";
+                if (type === "" && seventhInt === 11) { sevType = "Maj7"; romanSev = "Maj7"; }
+                else if (type === "" && seventhInt === 10) { sevType = "7"; romanSev = "7"; }
+                else if (type === "m" && seventhInt === 10) { sevType = "m7"; romanSev = "7"; }
+                else if (type === "m" && seventhInt === 11) { sevType = "m(Maj7)"; romanSev = "Maj7"; }
+                else if (type === "dim" && seventhInt === 9) { sevType = "dim7"; romanSev = "°7"; baseRoman = baseRoman.replace("°", ""); }
+                else if (type === "dim" && seventhInt === 10) { sevType = "m7b5"; romanSev = "ø7"; baseRoman = baseRoman.replace("°", ""); } 
+                else if (type === "aug" && seventhInt === 11) { sevType = "Maj7#5"; romanSev = "Maj7#5"; }
+                else { sevType = type + "7"; romanSev = "7"; }
+
+                if (comp === 1) return { label: root + sevType, roman: baseRoman + romanSev };
+                
+                let label = "";
+                let romanExt = romanSev;
+                
+                if (sevType === "m7b5") {
+                    label = root + (isMinorNinth ? "m7b5(b9)" : "m7b5(add9)");
+                    romanExt = isMinorNinth ? "ø7(b9)" : "ø7(add9)";
+                } else if (sevType === "dim7") {
+                    label = root + (isMinorNinth ? "dim(b9)" : "dim9");
+                    romanExt = isMinorNinth ? "°7(b9)" : "°9";
+                } else {
+                    // THE FIX: Do not replace '7' with '9' if it is a flat 9th
+                    if (isMinorNinth) {
+                        label = root + sevType + "(b9)";
+                        romanExt = romanSev + "(b9)";
+                    } else {
+                        label = root + sevType.replace('7', '9');
+                        romanExt = romanSev.replace('7', '9');
+                    }
+                }
+                
+                return { label, roman: baseRoman + romanExt };
+            };
+
+            const getCircularStyle = (index, total, radiusPercent, rotateText = 0) => {
+                const angle = (index / total) * 2 * Math.PI - Math.PI / 2;
+                return {
+                    left: `${50 + Math.cos(angle) * radiusPercent}%`,
+                    top: `${50 + Math.sin(angle) * radiusPercent}%`,
+                    transform: `translate(-50%, -50%) rotate(${rotateText}deg)`
+                };
+            };
+
+            return (
+                <div className="min-h-screen bg-[#050514] text-white font-mono overflow-hidden relative flex flex-col items-center py-6">
+                    <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(0,255,255,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(0,255,255,0.1)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+                    
+                    <div className="z-40 w-full max-w-5xl px-8 flex justify-between items-start mb-8 relative">
+                        <div className="flex flex-col max-w-[60%]">
+                            <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-yellow-400 drop-shadow-[0_0_10px_rgba(255,0,255,0.5)] tracking-widest uppercase">
+                                Royal Arcade
+                            </h1>
+                            <div className="text-cyan-500 text-sm tracking-widest uppercase flex items-center gap-2 mt-1">
+                                <span className="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_8px_cyan]"></span>
+                                Visual Hub 2026 // {KEYS[activeKeyIdx]} <span className="text-yellow-400 font-bold ml-1">{activeScaleKey.replace(/([A-Z])/g, ' $1').toUpperCase()}</span>
+                                <span className="text-fuchsia-400 font-black border-l border-cyan-500/30 ml-2 pl-2">Sig: {getKeySignature(activeKeyIdx, mode === 1)}</span>
+                            </div>
+                            <div className="mt-3 flex gap-2 flex-wrap items-center">
+                                {SCALE_INTERVALS[activeScaleKey].map((interval, i) => (
+                                    <div key={i} className="flex flex-col items-center bg-blue-900/30 border border-cyan-500/20 px-2 py-1 rounded min-w-[42px] backdrop-blur-sm">
+                                        <span className="text-[10px] text-cyan-300/60 font-bold">{INTERVAL_LABELS[activeScaleKey][i]}</span>
+                                        <span className="text-xs font-black text-white">{getNoteName(activeKeyIdx, i)}</span>
+                                    </div>
+                                ))}
+                                <button 
+                                    onClick={playScaleChords}
+                                    className="ml-2 p-2 rounded-lg bg-blue-900/40 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500 hover:text-black transition-all active:scale-95"
+                                >
+                                    <Icons.ListMusic className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-4 bg-blue-950/60 p-2 rounded-xl border border-cyan-500/30 shadow-[0_0_15px_rgba(0,255,255,0.1)] backdrop-blur-md relative">
+                                <div className="flex flex-col relative">
+                                    <div className="flex bg-blue-900/50 rounded-lg p-1">
+                                        <button onClick={() => { initAudio(); setMode(0); }} className={`px-3 py-1.5 text-xs font-bold tracking-widest rounded-md transition-all ${mode === 0 ? 'bg-cyan-500 text-black shadow-[0_0_10px_cyan]' : 'text-cyan-600 hover:text-cyan-400'}`}>MAJOR</button>
+                                        <button onClick={() => { initAudio(); setMode(1); }} className={`px-3 py-1.5 text-xs font-bold tracking-widest rounded-md transition-all ${mode === 1 ? 'bg-cyan-500 text-black shadow-[0_0_10px_cyan]' : 'text-cyan-600 hover:text-cyan-400'}`}>MINOR</button>
+                                    </div>
+                                    {mode === 1 && (
+                                        <div className="absolute top-[110%] left-0 flex bg-blue-950/90 rounded-lg p-1 border border-yellow-500/30 z-[60] shadow-2xl backdrop-blur-xl">
+                                            {['naturalMinor', 'harmonicMinor', 'melodicMinor'].map(type => (
+                                                <button
+                                                    key={type}
+                                                    onClick={() => setMinorType(type)}
+                                                    className={`px-2 py-1 text-[9px] font-black rounded transition-all ${minorType === type ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-500'}`}
+                                                >
+                                                    {type.replace('Minor', '').toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="w-px h-6 bg-cyan-500/30"></div>
+                                <div className="flex bg-blue-900/50 rounded-lg p-1">
+                                    <button onClick={() => { initAudio(); setComplexity(0); }} className={`px-3 py-1.5 text-xs font-bold tracking-widest rounded-md transition-all ${complexity === 0 ? 'bg-fuchsia-500 text-black shadow-[0_0_10px_magenta]' : 'text-fuchsia-600'}`}>TRIAD</button>
+                                    <button onClick={() => { initAudio(); setComplexity(1); }} className={`px-3 py-1.5 text-xs font-bold tracking-widest rounded-md transition-all ${complexity === 1 ? 'bg-fuchsia-500 text-black shadow-[0_0_10px_magenta]' : 'text-fuchsia-600'}`}>7TH</button>
+                                    <button onClick={() => { initAudio(); setComplexity(2); }} className={`px-3 py-1.5 text-xs font-bold tracking-widest rounded-md transition-all ${complexity === 2 ? 'bg-fuchsia-500 text-black shadow-[0_0_10px_magenta]' : 'text-fuchsia-600'}`}>9TH</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 flex items-center justify-center w-full z-10 px-4">
+                        <div className="relative w-full max-w-[620px] aspect-square rounded-full flex items-center justify-center">
+                                <div className="absolute inset-0 rounded-full border border-cyan-500/30 shadow-[0_0_50px_rgba(0,255,255,0.15)] pointer-events-none"></div>
+
+                                <div className="absolute inset-2 transition-transform duration-700 ease-out" style={{ transform: `rotate(${-activeKeyIdx * 30}deg)` }}>
+                                    {KEYS.map((key, i) => {
+                                    // Check if THIS specific key has an active LED color
+                                    const activeColor = isGroovePlaying ? ledStates[i] : null;
+                                    
+                                    return (
+                                        <button
+                                            key={key}
+                                            onClick={() => { initAudio(); setActiveKeyIdx(i); }}
+                                            className={`absolute w-14 h-14 rounded-full flex items-center justify-center font-black text-xl transition-all duration-150 z-20 ${i === activeKeyIdx ? 'bg-cyan-400 text-black shadow-[0_0_20px_cyan] border-2 border-white scale-110' : 'bg-blue-950/90 text-cyan-500 border border-cyan-800/50 hover:bg-blue-800'}`}
+                                            style={{
+                                                ...getCircularStyle(i, 12, 44, activeKeyIdx * 30),
+                                                backgroundColor: activeColor || (i === activeKeyIdx ? '' : undefined),
+                                                boxShadow: activeColor ? `0 0 20px ${activeColor}, 0 0 40px ${activeColor}` : (i === activeKeyIdx ? '0 0 20px cyan' : ''),
+                                                color: activeColor ? '#000' : undefined,
+                                                borderColor: activeColor ? '#fff' : undefined,
+                                                transform: `${getCircularStyle(i, 12, 44, activeKeyIdx * 30).transform} ${activeColor ? 'scale(1.2)' : 'scale(1)'}`
+                                            }}
+                                        >
+                                            {mode === 0 ? key : (key === 'Db' ? 'C#' : key) + 'm'}
+                                        </button>
+                                    );
+                                })}
+                                </div>
+
+                               <div className="absolute inset-[22%] rounded-full z-10">
+                                    {/* NEW INTERMEDIATE COLOR CIRCLE PLACED AT THE BOTTOM (z-0) */}
+                                    <div 
+                                        className="absolute inset-0 rounded-full border-2 transition-all duration-1000 ease-in-out pointer-events-none z-0"
+                                        style={{
+                                            // Logic to select color and apply 25% opacity (44)
+                                            backgroundColor: isAutoPlaying 
+                                                ? `${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}44` 
+                                                : 'transparent',
+                                            // Glow effect
+                                            boxShadow: isAutoPlaying 
+                                                ? `0 0 60px ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}33, inset 0 0 40px ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}33` 
+                                                : 'none',
+                                            // Border color logic
+                                            borderColor: isAutoPlaying 
+                                                ? (mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]) 
+                                                : 'rgba(217, 70, 239, 0.1)'
+                                        }}
+                                    ></div>
+
+                                    {/* YOUR 7 SMALL CHORD CIRCLES (DRAWN ON TOP with z-30) */}
+                                    {[0, 1, 2, 3, 4, 5, 6].map((degree) => {
+                                        const { label, roman } = getChordDetails(activeKeyIdx, degree, complexity);
+                                        
+                                        // NEW SYNC LOGIC:
+                                        const isRhythmBlink = flashingDegree === degree;
+                                        const isPlayingManual = playingDegree === degree;
+                                        const activeBlue = BLUE_SHADES[degree % BLUE_SHADES.length];
+
+                                        return (
+                                            <button
+                                                key={degree}
+                                                onClick={() => !isGroovePlaying && playChord(degree)}
+                                                className={`absolute flex flex-col items-center justify-center w-20 h-20 rounded-full border transition-all duration-150 z-30 bg-[#050514]
+                                                    ${(isRhythmBlink || isPlayingManual) ? 'scale-110 brightness-150' : 'border-cyan-500/50 text-cyan-400'}`}
+                                            style={{
+                                                ...getCircularStyle(degree, 7, 50),
+                                                // Solid background to block the ring
+                                                backgroundColor: '#050514',
+                                                // Internal color tint
+                                                backgroundImage: (isRhythmBlink || isPlayingManual)
+                                                    ? `linear-gradient(0deg, ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}44, ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}44)`
+                                                    : 'none',
+                                                
+                                                // BRINGING BACK EXTERNAL LIGHTING:
+                                                boxShadow: (isRhythmBlink || isPlayingManual)
+                                                    ? `0 0 20px ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}88, 
+                                                    0 0 40px ${mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]}44`
+                                                    : 'none',
+
+                                                borderColor: (isRhythmBlink || isPlayingManual) 
+                                                    ? (mode === 0 ? KEY_THEMES.major[activeKeyIdx] : KEY_THEMES.minor[activeKeyIdx]) 
+                                                    : 'rgba(6, 182, 212, 0.5)',
+                                                    
+                                                color: (isRhythmBlink || isPlayingManual) ? '#fff' : undefined
+                                            }}
+                                            >
+                                                <span className="text-xs font-bold">{roman}</span>
+                                                <span className="text-[11px] font-black">{label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="absolute inset-[36%] bg-blue-950 rounded-full shadow-[0_0_40px_rgba(0,0,0,0.8)] border-4 border-yellow-400/80 z-40 overflow-hidden flex items-center justify-center">
+                                     <div className="absolute inset-0 transition-transform duration-[2500ms]" style={{ transform: `rotate(${rouletteRot}deg)`, background: 'conic-gradient(from 0deg, #d946ef 0 45deg, #0a0a2a 45deg 90deg, #06b6d4 90deg 135deg, #0a0a2a 135deg 180deg, #eab308 180deg 225deg, #0a0a2a 225deg 270deg, #06b6d4 270deg 315deg, #0a0a2a 315deg 360deg)' }}></div>
+                                     <div className="absolute inset-0 pointer-events-none z-50">
+                                            <div className="absolute w-3 h-3 rounded-full bg-white shadow-[0_0_8px_white]" style={{ left: '50%', top: '50%', transform: `rotate(${ballRotation}deg) translate(80px)` }} />
+                                     </div>
+                                     <button onClick={handleSpin} disabled={isSpinning} className={`relative w-28 h-28 rounded-full bg-blue-900 flex flex-col items-center justify-center border-[6px] transition-all duration-200 ${isSpinning ? 'border-fuchsia-500' : 'border-yellow-400 hover:scale-105 active:scale-95'}`}>
+                                         <Icons.Crown className={`w-8 h-8 mb-1 ${isSpinning ? 'text-fuchsia-400 animate-spin' : 'text-yellow-400'}`} />
+                                         <span className={`font-black tracking-widest text-lg ${isSpinning ? 'text-fuchsia-400' : 'text-yellow-400'}`}>{isSpinning ? '...' : 'SPIN'}</span>
+                                     </button>
+                                </div>
+                        </div>
+                    </div>
+
+                    <div className="z-10 w-full max-w-5xl px-8 mt-8 flex flex-col gap-4 relative">
+                        <div className="flex justify-between items-center border-b border-blue-800/50 pb-3">
+                             <div className="flex items-center gap-6">
+                                 <h2 className="text-xl font-bold text-cyan-400 tracking-widest flex items-center gap-2 uppercase">
+                                     <Icons.Music className="w-5 h-5" /> LOOP
+                                 </h2>
+                                 <div className="flex items-center gap-3">
+                                        <button onClick={() => setIsArpeggioActive(!isArpeggioActive)} className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-xs font-black tracking-widest ${isArpeggioActive ? 'bg-fuchsia-500 text-black' : 'bg-blue-900/40 text-fuchsia-400 border-fuchsia-500/30'}`}>
+                                            <Icons.Activity className="w-4 h-4" /> ARPEGGIO {isArpeggioActive ? 'ON' : 'OFF'}
+                                        </button>
+                                        <button onClick={toggleGroove} className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-xs font-black tracking-widest ${isGroovePlaying ? 'bg-cyan-500 text-black' : 'bg-blue-900/40 text-cyan-500 border-cyan-500/30'}`}>
+                                            {isGroovePlaying ? <Icons.Square className="w-4 h-4" /> : <Icons.Zap className="w-4 h-4" />} GROOVE MODE
+                                        </button>
+                                 </div>
+                             </div>
+                             <div className="flex items-center gap-3">
+                                    <div className="flex bg-blue-950/60 rounded-xl p-1 border border-cyan-500/20">
+                                        {Object.keys(STYLES).map(styleKey => (
+                                            <button key={styleKey} onClick={() => setCurrentStyle(styleKey)} className={`px-3 py-1.5 text-[10px] font-black rounded-lg transition-all uppercase ${currentStyle === styleKey ? 'bg-cyan-500 text-black' : 'text-cyan-600'}`}>{styleKey}</button>
+                                        ))}
+                                    </div>
+                                    <button onClick={playSequence} disabled={isGroovePlaying} className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/40 px-6 py-2 rounded-xl transition-all font-black text-sm disabled:opacity-20 hover:bg-yellow-500 hover:text-black flex items-center">
+                                        <Icons.Play className="w-4 h-4 inline mr-2" /> PLAY ALL
+                                    </button>
+                             </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-4 gap-4">
+                            {slots.map((slot, i) => {
+                                 const { label, roman } = getChordDetails(activeKeyIdx, slot.degree, complexity);
+                                 const isPlaying = playingSlotIdx === i;
+                                 return (
+                                     <div key={i} className={`relative h-28 rounded-lg border-2 backdrop-blur-md p-4 flex flex-col justify-between transition-all duration-300 ${isPlaying ? 'bg-cyan-500/20 border-cyan-400 scale-105 shadow-[0_0_20px_cyan]' : 'border-blue-800/50 bg-blue-950/40'} ${isSpinning && !slot.locked ? 'animate-pulse opacity-70' : ''}`}>
+                                         <div className="flex justify-between items-start">
+                                                <span className="text-xl font-bold opacity-70">{roman}</span>
+                                                <button onClick={() => toggleLock(i)} className={`p-1.5 rounded ${slot.locked ? 'text-fuchsia-400' : 'text-blue-600'}`}>{slot.locked ? <Icons.Lock className="w-4 h-4" /> : <Icons.Unlock className="w-4 h-4" />}</button>
+                                         </div>
+                                         <div className="flex justify-between items-end cursor-pointer" onClick={() => !isGroovePlaying && playChord(slot.degree, activeKeyIdx, i)}>
+                                                <span className="text-xl font-black text-white">{label}</span>
+                                                <Icons.Play className="w-5 h-5 text-white/20" />
+                                         </div>
+                                     </div>
+                                 );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
