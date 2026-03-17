@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Parachute Simulation - ver 1.0 DELTA</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        
+        .panel {
+            position: absolute;
+            background: rgba(10, 25, 60, 0.85);
+            border: 1px solid rgba(65, 105, 225, 0.5);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 10;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #hud { top: 20px; left: 20px; width: 220px; }
+        #camera-settings { top: 220px; left: 20px; width: 220px; }
+        #controls { top: 20px; right: 20px; width: 280px; }
+        #style-settings { bottom: 20px; right: 20px; width: 280px; }
+        #instructions { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 14px; padding: 10px 20px; }
+
+        .panel.collapsed-left { transform: translateX(calc(-100% + 40px)); }
+        .panel.collapsed-right { transform: translateX(calc(100% - 40px)); }
+
+        .panel-toggle {
+            position: absolute;
+            top: 8px;
+            width: 28px;
+            height: 28px;
+            background: rgba(65, 105, 225, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.2s;
+            z-index: 11;
+        }
+        .panel-toggle:hover { 
+            background: rgba(65, 105, 225, 1);
+            border-color: white;
+        }
+
+        #hud .panel-toggle, #camera-settings .panel-toggle { right: 8px; }
+        #controls .panel-toggle, #style-settings .panel-toggle { left: 8px; }
+
+        h2 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #4169E1;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(65, 105, 225, 0.3);
+            padding-bottom: 5px;
+            padding-right: 35px; 
+        }
+        
+        #controls h2, #style-settings h2 {
+            padding-right: 0;
+            padding-left: 35px;
+            text-align: right;
+        }
+
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .stat-label { color: #aaa; }
+        .stat-value { font-weight: bold; font-family: monospace; font-size: 15px; }
+
+        .control-group { margin-bottom: 12px; }
+        .control-group label { display: block; font-size: 12px; color: #ccc; margin-bottom: 4px; }
+        .control-group input[type="range"] { width: 100%; accent-color: #4169E1; }
+        
+        select {
+            width: 100%;
+            padding: 6px;
+            background: rgba(10, 25, 60, 0.85);
+            color: white;
+            border: 1px solid rgba(65, 105, 225, 0.5);
+            border-radius: 4px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
+        .val-display { float: right; color: #4169E1; font-weight: bold; }
+
+        button.action-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #4169E1;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        button.action-btn:hover { background-color: #27408B; }
+
+        .status-FREEFALL { color: #ef4444; } 
+        .status-DEPLOYING { color: #f59e0b; } 
+        .status-DEPLOYED { color: #10b981; } 
+        .status-LANDED { color: #3b82f6; }
+
+        .icon-parachute { width: 16px; height: 16px; fill: currentColor; }
+
+        #palette-preview {
+            display: flex;
+            height: 12px;
+            margin-top: 6px;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid rgba(65, 105, 225, 0.5);
+        }
+        .palette-color {
+            flex-grow: 1;
+            height: 100%;
+        }
+
+        .shifter-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between; /* <-- push checkbox to the right */
+            width: 100%;
+            gap: 8px;
+        }
+        .shifter-icon {
+            color: #ffda44;
+            animation: pulse 2s infinite;
+        }
+        .rainbow-icon {
+            font-size: 16px;
+            filter: drop-shadow(0 0 2px rgba(255,255,255,0.5));
+        }
+        .wind-icon {
+            font-size: 16px;
+            margin-right: 4px;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.9); }
+            50% { opacity: 1; transform: scale(1.1); }
+            100% { opacity: 0.4; transform: scale(0.9); }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="hud" class="panel">
+        <button class="panel-toggle" onclick="togglePanel('hud', 'left')">
+            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
+        </button>
+        <h2>Telemetry</h2>
+        <div class="stat-row"><span class="stat-label">Altitude:</span><span class="stat-value" id="hud-alt">1000 m</span></div>
+        <div class="stat-row"><span class="stat-label">Speed:</span><span class="stat-value" id="hud-speed">0 m/s</span></div>
+        <div class="stat-row"><span class="stat-label">Descent:</span><span class="stat-value" id="hud-vz">0 m/s</span></div>
+        <div class="stat-row"><span class="stat-label">State:</span><span class="stat-value status-FREEFALL" id="hud-state">FREEFALL</span></div>
+    </div>
+
+    <div id="camera-settings" class="panel">
+        <button class="panel-toggle" onclick="togglePanel('camera-settings', 'left')">
+            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
+        </button>
+        <h2>Camera Control</h2>
+        <label class="checkbox-group"><input type="checkbox" id="cam-auto-rotate"> Auto-Rotation</label>
+        <div class="control-group">
+            <label>Rotation Speed <span id="val-rot-speed" class="val-display">0.3</span></label>
+            <input type="range" id="param-rot-speed" min="0" max="2" value="0.3" step="0.05">
+        </div>
+        <label class="checkbox-group"><input type="checkbox" id="cam-turbulence" checked> Smooth Turbulence</label>
+        <div class="control-group">
+            <label>Sway Intensity <span id="val-shake" class="val-display">1.5</span></label>
+            <input type="range" id="param-shake" min="0.1" max="10" value="1.5" step="0.1">
+        </div>
+        <button id="btn-reset-cam" class="action-btn">Reset View</button>
+    </div>
+
+    <div id="controls" class="panel">
+        <button class="panel-toggle" onclick="togglePanel('controls', 'right')">
+            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
+        </button>
+        <h2>Physics</h2>
+        <div class="control-group">
+            <label>Mass (kg) <span id="val-mass" class="val-display">80</span></label>
+            <input type="range" id="param-mass" min="50" max="250" value="80" step="1">
+        </div>
+        <div class="control-group">
+            <label>Deploy Altitude (m) <span id="val-deploy" class="val-display">300</span></label>
+            <input type="range" id="param-deploy" min="100" max="800" value="300" step="10">
+        </div>
+        <div class="control-group">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="margin-bottom:0">Wind X (m/s) <span id="val-windx" class="val-display">5.0</span></label>
+                <label class="checkbox-group" style="margin-bottom:0"><span class="wind-icon">🌬️</span><input type="checkbox" id="param-auto-wind"></label>
+            </div>
+            <input type="range" id="param-windx" min="-20" max="20" value="5" step="0.5">
+        </div>
+        <div class="control-group">
+            <label>Time Scale <span id="val-time" class="val-display">1.0x</span></label>
+            <input type="range" id="param-time" min="0.1" max="5" value="1" step="0.1">
+        </div>
+        <button id="btn-restart" class="action-btn">Jump Again</button>
+    </div>
+
+    <div id="style-settings" class="panel">
+        <button class="panel-toggle" onclick="togglePanel('style-settings', 'right')">
+            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
+        </button>
+        <h2>Canopy Shape & Style</h2>
+        
+        <label class="checkbox-group shifter-label">
+            <span class="shifter-icon">✨</span>
+            <span>Shape-Shifter</span>
+            <input type="checkbox" id="param-shifter" style="margin-left: auto;">
+        </label>
+
+        <div class="control-group">
+            <label>Canopy Shape <span id="val-shape" class="val-display">Annular</span></label>
+            <input type="range" id="param-shape" min="0" max="4" value="0" step="1">
+        </div>
+        
+        <div class="control-group">
+            <div class="shifter-label" style="margin-bottom: 4px;">
+                <span class="rainbow-icon">🌈</span>
+                <label style="margin-bottom: 0;">Color Palette</label>
+                <label class="checkbox-group" style="margin-left: auto; margin-bottom: 0;">
+                    <input type="checkbox" id="param-palette-auto">
+                </label>
+            </div>
+            <select id="param-palette">
+                <option value="paired">Paired-12</option>
+                <option value="set3">Set3</option>
+                <option value="oranges">Oranges4</option>
+                <option value="blues">Blues4</option>
+                <option value="yellows">Yellows4</option>
+                <option value="greens">Greens4</option>
+                <option value="reds">Reds4</option>
+                <option value="purples">Purples4</option>
+                <option value="viridis">Viridis</option>
+                <option value="plasma">Plasma</option>
+            </select>
+            <div id="palette-preview"></div>
+        </div>
+    </div>
+
+    <div id="instructions" class="panel">
+        <b>Mouse:</b> Drag to rotate view | Scroll to zoom<br>
+        <b>WASD / Arrows:</b> Steer Jumper
+    </div>
+
+    <script>
+        // --- CONFIGURATION & STATE ---
+        const CONFIG = {
+            gravity: 9.81,
+            airDensity: 1.225,
+            startAltitude: 1000,
+            freefall: { Cd: 0.4, A: 0.7 },
+            parachute: { Cd: 1.5, A: 44.0 }, 
+            deployDuration: 2.0,
+            steerForce: 150,
+            baseMass: 80 
+        };
+
+        const PALETTES = {
+            paired: ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
+            set3:   ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f'],
+            oranges:['#feedde','#fdbe85','#fd8d3c','#d94701'],
+            blues:  ['#eff3ff','#bdd7e7','#6baed6','#2171b5'],
+            yellows:['#ffffd4','#fed98e','#fe9929','#cc4c02'],
+            greens: ['#edf8e9','#bae4b3','#74c476','#238b45'],
+            reds:   ['#fee5d9','#fcae91','#fb6a4a','#cb181d'],
+            purples:['#f2f0f7','#cbc9e2','#9e9ac8','#6a51a3'],
+            viridis:['#440154','#414487','#2a788e','#22a884','#7ad151','#fde725'],
+            plasma: ['#0d0887','#6a00a8','#b12a90','#e16462','#fca636','#f0f921']
+        };
+
+        const SHAPE_NAMES = ['Annular', 'Hemispherical', 'Cruciform', 'Ram-Air', 'Rogallo Wing'];
+
+        let state = {
+            phase: 'FREEFALL',
+            position: new THREE.Vector3(0, CONFIG.startAltitude, 0),
+            velocity: new THREE.Vector3(0, 0, 0),
+            mass: 80,
+            deployAltitude: 300,
+            wind: new THREE.Vector3(5, 0, 0),
+            timeScale: 1.0,
+            deployProgress: 0,
+            keys: { up: false, down: false, left: false, right: false },
+            camRotationActive: false,
+            camRotationSpeed: 0.3,
+            camTurbulenceActive: true,
+            camShakeIntensity: 1.5,
+            camPhi: Math.PI / 4,
+            camTheta: 0,
+            camDistance: 25,
+            isDragging: false,
+            lastMousePos: { x: 0, y: 0 },
+            shapeShifterActive: false,
+            lastShapeChange: 0,
+            currentShapeIndex: 0,
+            paletteAutoActive: false,
+            lastPaletteChange: 0,
+            currentPaletteIndex: 0,
+            autoWindActive: false,
+            autoWindDir: 1 // 1 for increasing, -1 for decreasing
+        };
+
+        // --- UI UTILITIES ---
+        function togglePanel(panelId, side) {
+            const panel = document.getElementById(panelId);
+            const className = side === 'left' ? 'collapsed-left' : 'collapsed-right';
+            panel.classList.toggle(className);
+        }
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.FogExp2(0x87CEEB, 0.0008);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(100, 500, 50);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        // --- 3D OBJECTS ---
+        const groundGeo = new THREE.PlaneGeometry(20000, 20000);
+        const groundMat = new THREE.MeshLambertMaterial({ 
+            color: 0x2d5a27,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1
+        }); 
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const grid = new THREE.GridHelper(10000, 100, 0x32CD32, 0x32CD32); 
+        grid.position.y = 0.01; 
+        grid.material.transparent = true;
+        grid.material.opacity = 0.5;
+        scene.add(grid);
+
+        const playerGroup = new THREE.Group();
+        scene.add(playerGroup);
+
+        const heartShape = new THREE.Shape();
+        heartShape.moveTo(0, 0);
+        heartShape.bezierCurveTo(0, 0.3, -0.6, 0.6, -0.6, 1.2);
+        heartShape.bezierCurveTo(-0.6, 1.8, 0, 1.8, 0, 1.2);
+        heartShape.bezierCurveTo(0, 1.8, 0.6, 1.8, 0.6, 1.2);
+        heartShape.bezierCurveTo(0.6, 0.6, 0, 0.3, 0, 0);
+
+        const extrudeSettings = { depth: 0.4, bevelEnabled: true, bevelSegments: 3, steps: 2, bevelSize: 0.15, bevelThickness: 0.15 };
+        const heartGeo = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+        const heartMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.4, metalness: 0.3 });
+        const heartMesh = new THREE.Mesh(heartGeo, heartMat);
+        
+        const updateHeartScale = () => {
+            const scaleFactor = Math.pow(state.mass / CONFIG.baseMass, 0.33);
+            const finalScale = 1.5 * scaleFactor;
+            heartMesh.scale.set(finalScale, finalScale, finalScale);
+            heartMesh.position.y = -1.8 * finalScale; 
+            
+            if (state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
+                const ease = state.phase === 'DEPLOYED' ? 1.0 : (1 - Math.pow(1 - state.deployProgress, 3));
+                updateStrings(ease);
+            }
+        };
+        
+        heartMesh.rotation.z = Math.PI; 
+        heartMesh.position.z = 0.2; 
+        heartMesh.castShadow = true;
+        playerGroup.add(heartMesh);
+
+        const CANOPY_ATTACH_HEIGHT = 5.0;
+
+        function generateStripedTexture(paletteName) {
+            const colors = PALETTES[paletteName];
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            const stripeWidth = canvas.width / colors.length;
+            
+            for(let i = 0; i < colors.length; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height);
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(2, 1);
+            return texture;
+        }
+
+        const canopyMat = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff, 
+            side: THREE.DoubleSide, 
+            roughness: 0.8 
+        });
+        canopyMat.map = generateStripedTexture('paired');
+
+        const canopyMesh = new THREE.Mesh(new THREE.BufferGeometry(), canopyMat);
+        canopyMesh.position.y = CANOPY_ATTACH_HEIGHT;
+        canopyMesh.scale.set(0.0001, 0.0001, 0.0001);
+        playerGroup.add(canopyMesh);
+
+        function updateCanopyShape(index) {
+            if (canopyMesh.geometry) canopyMesh.geometry.dispose();
+
+            let geo;
+            let anchorPoints = [];
+            
+            switch(index) {
+                case 0: // Annular
+                    const pts = [];
+                    for ( let i = 0; i <= 16; i ++ ) {
+                        let t = (i / 16) * Math.PI; 
+                        pts.push( new THREE.Vector2( 2.5 + Math.cos(t)*1.0, Math.sin(t)*1.0 ) );
+                    }
+                    geo = new THREE.LatheGeometry( pts, 32 );
+                    for(let i=0; i<16; i++) {
+                        let a = (i/16)*Math.PI*2;
+                        anchorPoints.push(new THREE.Vector3(Math.cos(a)*3.5, 0, Math.sin(a)*3.5));
+                        anchorPoints.push(new THREE.Vector3(Math.cos(a)*1.5, 0, Math.sin(a)*1.5));
+                    }
+                    break;
+                case 1: // Hemispherical
+                    geo = new THREE.SphereGeometry(3.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+                    for(let i=0; i<16; i++) {
+                        let a = (i/16)*Math.PI*2;
+                        anchorPoints.push(new THREE.Vector3(Math.cos(a)*3.5, 0, Math.sin(a)*3.5));
+                    }
+                    break;
+                case 2: // Cruciform
+                    const crossShape = new THREE.Shape();
+                    const w = 1.0, l = 3.5;
+                    crossShape.moveTo(-w, -l); crossShape.lineTo(w, -l); crossShape.lineTo(w, -w);
+                    crossShape.lineTo(l, -w); crossShape.lineTo(l, w); crossShape.lineTo(w, w);
+                    crossShape.lineTo(w, l); crossShape.lineTo(-w, l); crossShape.lineTo(-w, w);
+                    crossShape.lineTo(-l, w); crossShape.lineTo(-l, -w); crossShape.lineTo(-w, -w);
+                    crossShape.lineTo(-w, -l);
+                    geo = new THREE.ExtrudeGeometry(crossShape, { depth: 0.1, bevelEnabled: true, bevelSegments: 2, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 });
+                    geo.rotateX(Math.PI / 2);
+                    geo.center();
+                    const pos = geo.attributes.position;
+                    for(let i=0; i<pos.count; i++) {
+                        let x = pos.getX(i); let z = pos.getZ(i);
+                        let dist = Math.sqrt(x*x + z*z);
+                        pos.setY(i, pos.getY(i) - dist * 0.15); 
+                    }
+                    geo.computeVertexNormals();
+                    [[w, l], [-w, l], [w, -l], [-w, -l], [l, w], [l, -w], [-l, w], [-l, -w]].forEach(c => {
+                        let dist = Math.sqrt(c[0]*c[0] + c[1]*c[1]);
+                        anchorPoints.push(new THREE.Vector3(c[0], -dist * 0.15 - 0.05, c[1]));
+                    });
+                    break;
+                case 3: // Ram-Air
+                    geo = new THREE.BoxGeometry(7, 0.4, 3.5, 16, 1, 1);
+                    const pos2 = geo.attributes.position;
+                    for(let i=0; i<pos2.count; i++) {
+                        let x = pos2.getX(i);
+                        pos2.setY(i, pos2.getY(i) - (x*x)*0.035); 
+                    }
+                    geo.computeVertexNormals();
+                    for(let i=0; i<5; i++) {
+                        let x = -3.5 + (i * 1.75);
+                        let archY = -(x*x)*0.035 - 0.2; 
+                        for(let j=0; j<4; j++) {
+                            anchorPoints.push(new THREE.Vector3(x, archY, -1.75 + (j * 1.16)));
+                        }
+                    }
+                    break;
+                case 4: // Rogallo Wing
+                    const rShape = new THREE.Shape();
+                    rShape.moveTo(0, 3.5);     
+                    rShape.lineTo(-3.5, -3);   
+                    rShape.lineTo(3.5, -3);    
+                    rShape.lineTo(0, 3.5);
+                    geo = new THREE.ExtrudeGeometry(rShape, { depth: 0.05, bevelEnabled: false });
+                    geo.rotateX(Math.PI / 2); 
+                    geo.center();
+                    const rPos = geo.attributes.position;
+                    for(let i=0; i<rPos.count; i++) {
+                        let x = rPos.getX(i);
+                        let z = rPos.getZ(i);
+                        rPos.setY(i, rPos.getY(i) + (1.0 - Math.abs(x)/3.5) * 0.4);
+                    }
+                    geo.computeVertexNormals();
+                    anchorPoints = [
+                        new THREE.Vector3(0, 0.4, 3.25),   
+                        new THREE.Vector3(-3.5, 0, -3.25), 
+                        new THREE.Vector3(3.5, 0, -3.25),  
+                        new THREE.Vector3(-1.75, 0.2, 0),  
+                        new THREE.Vector3(1.75, 0.2, 0),   
+                        new THREE.Vector3(0, 0, -3.25)     
+                    ];
+                    break;
+            }
+
+            canopyMesh.geometry = geo;
+            canopyMesh.userData.anchorPoints = anchorPoints;
+        }
+
+        updateCanopyShape(0);
+
+        const stringsGeo = new THREE.BufferGeometry();
+        const stringLines = new THREE.LineSegments(
+            stringsGeo, 
+            new THREE.LineBasicMaterial({ color: 0x4169E1, transparent: true, opacity: 0.8 })
+        );
+        playerGroup.add(stringLines);
+        
+        function updateStrings(scale) {
+            if (scale < 0.001) { 
+                stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+                return; 
+            }
+
+            const currentScaleFactor = heartMesh.scale.x; 
+            const lobeOffset = 0.8 * (currentScaleFactor / 1.5); 
+            const attachL = new THREE.Vector3(-0.4 * (currentScaleFactor/1.5), heartMesh.position.y + lobeOffset, 0.1); 
+            const attachR = new THREE.Vector3(0.4 * (currentScaleFactor/1.5), heartMesh.position.y + lobeOffset, 0.1);
+
+            const pts = [];
+            const anchors = canopyMesh.userData.anchorPoints || [];
+            
+            const tempQuat = new THREE.Quaternion();
+            canopyMesh.getWorldQuaternion(tempQuat);
+
+            for(let i = 0; i < anchors.length; i++) {
+                const rimPos = anchors[i].clone().multiplyScalar(scale);
+                rimPos.applyQuaternion(tempQuat);
+
+                const rimX = rimPos.x;
+                const rimY = rimPos.y + CANOPY_ATTACH_HEIGHT;
+                const rimZ = rimPos.z;
+
+                let anchor;
+                if (anchors[i].x < -0.01) anchor = attachL;
+                else if (anchors[i].x > 0.01) anchor = attachR;
+                else anchor = (i % 2 === 0) ? attachL : attachR;
+                
+                pts.push(anchor.x, anchor.y, anchor.z);
+                pts.push(rimX, rimY, rimZ);
+            }
+
+            stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+            stringsGeo.attributes.position.needsUpdate = true;
+        }
+
+        function calculateDrag(velocity, wind, currentCd, currentArea) {
+            const airVel = new THREE.Vector3().subVectors(velocity, wind);
+            const speed = airVel.length();
+            if (speed < 0.01) return new THREE.Vector3(0,0,0);
+            const dragMag = 0.5 * CONFIG.airDensity * currentCd * currentArea * speed * speed;
+            return airVel.clone().normalize().multiplyScalar(-dragMag);
+        }
+
+        function physicsStep(dt) {
+            if (state.phase === 'LANDED') return;
+            let cd = CONFIG.freefall.Cd, area = CONFIG.freefall.A;
+            
+            if (state.phase === 'DEPLOYING') {
+                state.deployProgress += dt / CONFIG.deployDuration;
+                if (state.deployProgress >= 1.0) { state.phase = 'DEPLOYED'; updateHUDState(); }
+                const ease = 1 - Math.pow(1 - Math.min(state.deployProgress, 1.0), 3);
+                cd = THREE.MathUtils.lerp(CONFIG.freefall.Cd, CONFIG.parachute.Cd, ease);
+                area = THREE.MathUtils.lerp(CONFIG.freefall.A, CONFIG.parachute.A, ease);
+                canopyMesh.scale.setScalar(ease); 
+                canopyMesh.visible = true;
+                stringLines.visible = true;
+                updateStrings(ease);
+            } else if (state.phase === 'DEPLOYED') { 
+                cd = CONFIG.parachute.Cd; 
+                area = CONFIG.parachute.A; 
+                canopyMesh.scale.setScalar(1.0);
+                canopyMesh.visible = true;
+                stringLines.visible = true;
+                updateStrings(1.0); 
+            } else {
+                canopyMesh.visible = false;
+                stringLines.visible = false;
+                updateStrings(0); 
+            }
+
+            const forces = new THREE.Vector3(0, -state.mass * CONFIG.gravity, 0);
+            forces.add(calculateDrag(state.velocity, state.wind, cd, area));
+
+            if (state.keys.up) forces.z -= CONFIG.steerForce;
+            if (state.keys.down) forces.z += CONFIG.steerForce;
+            if (state.keys.left) forces.x -= CONFIG.steerForce;
+            if (state.keys.right) forces.x += CONFIG.steerForce;
+
+            state.velocity.addScaledVector(forces.divideScalar(state.mass), dt);
+            state.position.addScaledVector(state.velocity, dt);
+
+            if (state.phase === 'FREEFALL' && state.position.y <= state.deployAltitude) { 
+                state.phase = 'DEPLOYING'; 
+                updateHUDState(); 
+            }
+
+            if (state.position.y + heartMesh.position.y <= 0) {
+                state.position.y = -heartMesh.position.y;
+                state.velocity.set(0, 0, 0); 
+                state.phase = 'LANDED'; 
+                updateHUDState();
+                
+                canopyMesh.visible = false;
+                stringLines.visible = false;
+                canopyMesh.scale.setScalar(0.0001);
+                updateStrings(0);
+            }
+        }
+
+        let lastTime = performance.now();
+        function animate() {
+            requestAnimationFrame(animate);
+            const timeNow = performance.now();
+            let dt = Math.min((timeNow - lastTime) / 1000, 0.1) * state.timeScale;
+            lastTime = timeNow;
+
+            // --- AUTO FEATURES ---
+            
+            // Auto-Wind (Back and Forth)
+            if (state.autoWindActive) {
+                const windMin = -20;
+                const windMax = 20;
+                const windSpeed = 10; // m/s change per second
+                state.wind.x += state.autoWindDir * windSpeed * dt;
+                
+                if (state.wind.x >= windMax) {
+                    state.wind.x = windMax;
+                    state.autoWindDir = -1;
+                } else if (state.wind.x <= windMin) {
+                    state.wind.x = windMin;
+                    state.autoWindDir = 1;
+                }
+                
+                // Update UI
+                document.getElementById('param-windx').value = state.wind.x;
+                document.getElementById('val-windx').innerText = state.wind.x.toFixed(1);
+            }
+
+            // Shape-Shifter logic
+            if (state.shapeShifterActive && timeNow - state.lastShapeChange > 3000) {
+                state.currentShapeIndex = (state.currentShapeIndex + 1) % SHAPE_NAMES.length;
+                state.lastShapeChange = timeNow;
+                document.getElementById('param-shape').value = state.currentShapeIndex;
+                document.getElementById('val-shape').innerText = SHAPE_NAMES[state.currentShapeIndex];
+                updateCanopyShape(state.currentShapeIndex);
+                const ease = state.phase === 'DEPLOYED' ? 1.0 : (state.phase === 'DEPLOYING' ? (1 - Math.pow(1 - state.deployProgress, 3)) : 0);
+                updateStrings(ease);
+            }
+
+            // Palette-Switcher logic
+            if (state.paletteAutoActive && timeNow - state.lastPaletteChange > 4000) {
+                const paletteKeys = Object.keys(PALETTES);
+                state.currentPaletteIndex = (state.currentPaletteIndex + 1) % paletteKeys.length;
+                state.lastPaletteChange = timeNow;
+                const newPalette = paletteKeys[state.currentPaletteIndex];
+                
+                document.getElementById('param-palette').value = newPalette;
+                canopyMat.map = generateStripedTexture(newPalette);
+                canopyMat.needsUpdate = true;
+                updatePalettePreview(newPalette);
+            }
+
+            physicsStep(dt);
+
+            playerGroup.position.copy(state.position);
+            heartMesh.rotation.x = Math.PI + (state.velocity.z * 0.02);
+            heartMesh.rotation.y = (state.velocity.x * 0.02);
+            
+            if(state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
+                canopyMesh.rotation.x = state.velocity.z * 0.015;
+                canopyMesh.rotation.z = -state.velocity.x * 0.015;
+                const ease = state.phase === 'DEPLOYED' ? 1.0 : (1 - Math.pow(1 - state.deployProgress, 3));
+                updateStrings(ease);
+            }
+
+            if (state.camRotationActive) state.camTheta += dt * state.camRotationSpeed;
+            let x = state.camDistance * Math.sin(state.camPhi) * Math.sin(state.camTheta);
+            let y = state.camDistance * Math.cos(state.camPhi);
+            let z = state.camDistance * Math.sin(state.camPhi) * Math.cos(state.camTheta);
+            let cameraPos = state.position.clone().add(new THREE.Vector3(x, y, z));
+            
+            if (state.camTurbulenceActive && state.phase !== 'LANDED') {
+                const t = timeNow * 0.001;
+                const speedFactor = Math.min(state.velocity.length() / 20, 1.5);
+                cameraPos.x += Math.sin(t * 1.5) * state.camShakeIntensity * speedFactor * 0.5;
+                cameraPos.y += Math.cos(t * 1.2) * state.camShakeIntensity * speedFactor * 0.3;
+            }
+
+            camera.position.copy(cameraPos);
+            camera.lookAt(state.position.clone().add(new THREE.Vector3(0, -1, 0)));
+
+            document.getElementById('hud-alt').innerText = state.position.y.toFixed(1) + ' m';
+            document.getElementById('hud-speed').innerText = (state.velocity.length() * 3.6).toFixed(1) + ' km/h';
+            document.getElementById('hud-vz').innerText = Math.abs(state.velocity.y).toFixed(1) + ' m/s';
+
+            renderer.render(scene, camera);
+        }
+
+        function updateHUDState() {
+            const el = document.getElementById('hud-state');
+            el.innerText = state.phase; el.className = 'stat-value status-' + state.phase;
+        }
+
+        function resetSimulation() {
+            state.phase = 'FREEFALL'; state.position.set(0, CONFIG.startAltitude, 0);
+            state.velocity.set(0, 0, 0); state.deployProgress = 0;
+            canopyMesh.scale.set(0.0001, 0.0001, 0.0001); 
+            canopyMesh.position.y = CANOPY_ATTACH_HEIGHT;
+            canopyMesh.visible = false;
+            stringLines.visible = false;
+            updateHeartScale();
+            updateStrings(0); 
+            updateHUDState();
+        }
+
+        window.addEventListener('mousedown', (e) => { if (e.target.closest('.panel')) return; state.isDragging = true; state.lastMousePos = { x: e.clientX, y: e.clientY }; });
+        window.addEventListener('mouseup', () => state.isDragging = false);
+        window.addEventListener('mousemove', (e) => {
+            if (!state.isDragging) return;
+            state.camTheta -= (e.clientX - state.lastMousePos.x) * 0.01;
+            state.camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, state.camPhi - (e.clientY - state.lastMousePos.y) * 0.01));
+            state.lastMousePos = { x: e.clientX, y: e.clientY };
+        });
+        window.addEventListener('wheel', (e) => state.camDistance = Math.max(5, Math.min(100, state.camDistance + e.deltaY * 0.05)));
+
+        document.getElementById('param-mass').oninput = (e) => { 
+            state.mass = +e.target.value; 
+            document.getElementById('val-mass').innerText = state.mass; 
+            updateHeartScale();
+        };
+        document.getElementById('param-deploy').oninput = (e) => { state.deployAltitude = +e.target.value; document.getElementById('val-deploy').innerText = state.deployAltitude; };
+        document.getElementById('param-windx').oninput = (e) => { 
+            state.wind.x = +e.target.value; 
+            document.getElementById('val-windx').innerText = state.wind.x.toFixed(1); 
+        };
+        document.getElementById('param-auto-wind').onchange = (e) => {
+            state.autoWindActive = e.target.checked;
+        };
+        document.getElementById('param-time').oninput = (e) => { state.timeScale = +e.target.value; document.getElementById('val-time').innerText = state.timeScale.toFixed(1) + 'x'; };
+        document.getElementById('cam-auto-rotate').onchange = (e) => state.camRotationActive = e.target.checked;
+        document.getElementById('param-rot-speed').oninput = (e) => { state.camRotationSpeed = +e.target.value; document.getElementById('val-rot-speed').innerText = state.camRotationSpeed.toFixed(2); };
+        document.getElementById('cam-turbulence').onchange = (e) => state.camTurbulenceActive = e.target.checked;
+        document.getElementById('param-shake').oninput = (e) => { state.camShakeIntensity = +e.target.value; document.getElementById('val-shake').innerText = state.camShakeIntensity.toFixed(1); };
+        document.getElementById('btn-reset-cam').onclick = () => { state.camPhi = Math.PI/3; state.camTheta = 0; state.camDistance = 25; };
+        document.getElementById('btn-restart').onclick = resetSimulation;
+        
+        document.getElementById('param-shifter').onchange = (e) => {
+            state.shapeShifterActive = e.target.checked;
+            if (state.shapeShifterActive) state.lastShapeChange = performance.now();
+        };
+
+        document.getElementById('param-palette-auto').onchange = (e) => {
+            state.paletteAutoActive = e.target.checked;
+            if (state.paletteAutoActive) state.lastPaletteChange = performance.now();
+        };
+
+        function updatePalettePreview(paletteName) {
+            const previewEl = document.getElementById('palette-preview');
+            previewEl.innerHTML = '';
+            const colors = PALETTES[paletteName];
+            colors.forEach(color => {
+                const span = document.createElement('span');
+                span.className = 'palette-color';
+                span.style.backgroundColor = color;
+                previewEl.appendChild(span);
+            });
+        }
+
+        document.getElementById('param-shape').oninput = (e) => {
+            const idx = parseInt(e.target.value);
+            state.currentShapeIndex = idx;
+            document.getElementById('val-shape').innerText = SHAPE_NAMES[idx];
+            updateCanopyShape(idx);
+            const ease = state.phase === 'DEPLOYED' ? 1.0 : (state.phase === 'DEPLOYING' ? (1 - Math.pow(1 - state.deployProgress, 3)) : 0);
+            updateStrings(ease);
+        };
+        document.getElementById('param-palette').onchange = (e) => {
+            const val = e.target.value;
+            canopyMat.map = generateStripedTexture(val);
+            canopyMat.needsUpdate = true;
+            updatePalettePreview(val);
+            state.currentPaletteIndex = Object.keys(PALETTES).indexOf(val);
+        };
+
+        window.onkeydown = (e) => {
+            if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=true; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=true;
+            if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=true;
+        };
+        window.onkeyup = (e) => {
+            if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=false;
+            if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false;
+        };
+        window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+        
+        window.onload = () => {
+            updateHeartScale(); 
+            updatePalettePreview('paired');
+            animate();
+        };
+    </script>
+</body>
+</html>
