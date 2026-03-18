@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - ver 1.0 DELTA</title>
+    <title>3D Parachute Simulation - ver 1.0b Rev 2</title>
     <style>
         body {
             margin: 0;
@@ -55,6 +55,7 @@
             color: white;
             transition: all 0.2s;
             z-index: 11;
+            font-size: 16px;
         }
         .panel-toggle:hover { 
             background: rgba(65, 105, 225, 1);
@@ -123,8 +124,6 @@
         .status-DEPLOYED { color: #10b981; } 
         .status-LANDED { color: #3b82f6; }
 
-        .icon-parachute { width: 16px; height: 16px; fill: currentColor; }
-
         #palette-preview {
             display: flex;
             height: 12px;
@@ -141,7 +140,7 @@
         .shifter-label {
             display: flex;
             align-items: center;
-            justify-content: space-between; /* <-- push checkbox to the right */
+            justify-content: space-between;
             width: 100%;
             gap: 8px;
         }
@@ -170,9 +169,7 @@
     <div id="canvas-container"></div>
 
     <div id="hud" class="panel">
-        <button class="panel-toggle" onclick="togglePanel('hud', 'left')">
-            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
-        </button>
+        <button class="panel-toggle" onclick="togglePanel('hud', 'left')">📡</button>
         <h2>Telemetry</h2>
         <div class="stat-row"><span class="stat-label">Altitude:</span><span class="stat-value" id="hud-alt">1000 m</span></div>
         <div class="stat-row"><span class="stat-label">Speed:</span><span class="stat-value" id="hud-speed">0 m/s</span></div>
@@ -181,9 +178,7 @@
     </div>
 
     <div id="camera-settings" class="panel">
-        <button class="panel-toggle" onclick="togglePanel('camera-settings', 'left')">
-            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
-        </button>
+        <button class="panel-toggle" onclick="togglePanel('camera-settings', 'left')">📽️</button>
         <h2>Camera Control</h2>
         <label class="checkbox-group"><input type="checkbox" id="cam-auto-rotate"> Auto-Rotation</label>
         <div class="control-group">
@@ -199,9 +194,7 @@
     </div>
 
     <div id="controls" class="panel">
-        <button class="panel-toggle" onclick="togglePanel('controls', 'right')">
-            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
-        </button>
+        <button class="panel-toggle" onclick="togglePanel('controls', 'right')">⚙️</button>
         <h2>Physics</h2>
         <div class="control-group">
             <label>Mass (kg) <span id="val-mass" class="val-display">80</span></label>
@@ -226,14 +219,14 @@
     </div>
 
     <div id="style-settings" class="panel">
-        <button class="panel-toggle" onclick="togglePanel('style-settings', 'right')">
-            <svg class="icon-parachute" viewBox="0 0 24 24"><path d="M12 2C7.03 2 3 6.03 3 11s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm-1-9h2v4h-2zm0 5h2v2h-2z"/></svg>
-        </button>
+        <button class="panel-toggle" onclick="togglePanel('style-settings', 'right')">🪂</button>
         <h2>Canopy Shape & Style</h2>
         
         <label class="checkbox-group shifter-label">
-            <span class="shifter-icon">✨</span>
-            <span>Shape-Shifter</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="shifter-icon">✨</span>
+                <span>Shape-Shifter</span>
+            </div>
             <input type="checkbox" id="param-shifter" style="margin-left: auto;">
         </label>
 
@@ -244,8 +237,10 @@
         
         <div class="control-group">
             <div class="shifter-label" style="margin-bottom: 4px;">
-                <span class="rainbow-icon">🌈</span>
-                <label style="margin-bottom: 0;">Color Palette</label>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="rainbow-icon">🌈</span>
+                    <label style="margin-bottom: 0;">Color Palette</label>
+                </div>
                 <label class="checkbox-group" style="margin-left: auto; margin-bottom: 0;">
                     <input type="checkbox" id="param-palette-auto">
                 </label>
@@ -272,7 +267,6 @@
     </div>
 
     <script>
-        // --- CONFIGURATION & STATE ---
         const CONFIG = {
             gravity: 9.81,
             airDensity: 1.225,
@@ -325,17 +319,15 @@
             lastPaletteChange: 0,
             currentPaletteIndex: 0,
             autoWindActive: false,
-            autoWindDir: 1 // 1 for increasing, -1 for decreasing
+            autoWindDir: 1
         };
 
-        // --- UI UTILITIES ---
         function togglePanel(panelId, side) {
             const panel = document.getElementById(panelId);
             const className = side === 'left' ? 'collapsed-left' : 'collapsed-right';
             panel.classList.toggle(className);
         }
 
-        // --- THREE.JS SETUP ---
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); 
         scene.fog = new THREE.FogExp2(0x87CEEB, 0.0008);
@@ -352,7 +344,6 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // --- 3D OBJECTS ---
         const groundGeo = new THREE.PlaneGeometry(20000, 20000);
         const groundMat = new THREE.MeshLambertMaterial({ 
             color: 0x2d5a27,
@@ -439,7 +430,6 @@
 
         function updateCanopyShape(index) {
             if (canopyMesh.geometry) canopyMesh.geometry.dispose();
-
             let geo;
             let anchorPoints = [];
             
@@ -529,7 +519,6 @@
                     ];
                     break;
             }
-
             canopyMesh.geometry = geo;
             canopyMesh.userData.anchorPoints = anchorPoints;
         }
@@ -548,35 +537,24 @@
                 stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
                 return; 
             }
-
             const currentScaleFactor = heartMesh.scale.x; 
             const lobeOffset = 0.8 * (currentScaleFactor / 1.5); 
             const attachL = new THREE.Vector3(-0.4 * (currentScaleFactor/1.5), heartMesh.position.y + lobeOffset, 0.1); 
             const attachR = new THREE.Vector3(0.4 * (currentScaleFactor/1.5), heartMesh.position.y + lobeOffset, 0.1);
-
             const pts = [];
             const anchors = canopyMesh.userData.anchorPoints || [];
-            
             const tempQuat = new THREE.Quaternion();
             canopyMesh.getWorldQuaternion(tempQuat);
-
             for(let i = 0; i < anchors.length; i++) {
                 const rimPos = anchors[i].clone().multiplyScalar(scale);
                 rimPos.applyQuaternion(tempQuat);
-
                 const rimX = rimPos.x;
                 const rimY = rimPos.y + CANOPY_ATTACH_HEIGHT;
                 const rimZ = rimPos.z;
-
-                let anchor;
-                if (anchors[i].x < -0.01) anchor = attachL;
-                else if (anchors[i].x > 0.01) anchor = attachR;
-                else anchor = (i % 2 === 0) ? attachL : attachR;
-                
+                let anchor = (anchors[i].x < -0.01) ? attachL : ((anchors[i].x > 0.01) ? attachR : ((i % 2 === 0) ? attachL : attachR));
                 pts.push(anchor.x, anchor.y, anchor.z);
                 pts.push(rimX, rimY, rimZ);
             }
-
             stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
             stringsGeo.attributes.position.needsUpdate = true;
         }
@@ -592,7 +570,6 @@
         function physicsStep(dt) {
             if (state.phase === 'LANDED') return;
             let cd = CONFIG.freefall.Cd, area = CONFIG.freefall.A;
-            
             if (state.phase === 'DEPLOYING') {
                 state.deployProgress += dt / CONFIG.deployDuration;
                 if (state.deployProgress >= 1.0) { state.phase = 'DEPLOYED'; updateHUDState(); }
@@ -615,29 +592,20 @@
                 stringLines.visible = false;
                 updateStrings(0); 
             }
-
             const forces = new THREE.Vector3(0, -state.mass * CONFIG.gravity, 0);
             forces.add(calculateDrag(state.velocity, state.wind, cd, area));
-
             if (state.keys.up) forces.z -= CONFIG.steerForce;
             if (state.keys.down) forces.z += CONFIG.steerForce;
             if (state.keys.left) forces.x -= CONFIG.steerForce;
             if (state.keys.right) forces.x += CONFIG.steerForce;
-
             state.velocity.addScaledVector(forces.divideScalar(state.mass), dt);
             state.position.addScaledVector(state.velocity, dt);
-
             if (state.phase === 'FREEFALL' && state.position.y <= state.deployAltitude) { 
-                state.phase = 'DEPLOYING'; 
-                updateHUDState(); 
+                state.phase = 'DEPLOYING'; updateHUDState(); 
             }
-
             if (state.position.y + heartMesh.position.y <= 0) {
                 state.position.y = -heartMesh.position.y;
-                state.velocity.set(0, 0, 0); 
-                state.phase = 'LANDED'; 
-                updateHUDState();
-                
+                state.velocity.set(0, 0, 0); state.phase = 'LANDED'; updateHUDState();
                 canopyMesh.visible = false;
                 stringLines.visible = false;
                 canopyMesh.scale.setScalar(0.0001);
@@ -652,29 +620,15 @@
             let dt = Math.min((timeNow - lastTime) / 1000, 0.1) * state.timeScale;
             lastTime = timeNow;
 
-            // --- AUTO FEATURES ---
-            
-            // Auto-Wind (Back and Forth)
             if (state.autoWindActive) {
-                const windMin = -20;
-                const windMax = 20;
-                const windSpeed = 10; // m/s change per second
+                const windMin = -20, windMax = 20, windSpeed = 10;
                 state.wind.x += state.autoWindDir * windSpeed * dt;
-                
-                if (state.wind.x >= windMax) {
-                    state.wind.x = windMax;
-                    state.autoWindDir = -1;
-                } else if (state.wind.x <= windMin) {
-                    state.wind.x = windMin;
-                    state.autoWindDir = 1;
-                }
-                
-                // Update UI
+                if (state.wind.x >= windMax) { state.wind.x = windMax; state.autoWindDir = -1; }
+                else if (state.wind.x <= windMin) { state.wind.x = windMin; state.autoWindDir = 1; }
                 document.getElementById('param-windx').value = state.wind.x;
                 document.getElementById('val-windx').innerText = state.wind.x.toFixed(1);
             }
 
-            // Shape-Shifter logic
             if (state.shapeShifterActive && timeNow - state.lastShapeChange > 3000) {
                 state.currentShapeIndex = (state.currentShapeIndex + 1) % SHAPE_NAMES.length;
                 state.lastShapeChange = timeNow;
@@ -685,13 +639,11 @@
                 updateStrings(ease);
             }
 
-            // Palette-Switcher logic
             if (state.paletteAutoActive && timeNow - state.lastPaletteChange > 4000) {
                 const paletteKeys = Object.keys(PALETTES);
                 state.currentPaletteIndex = (state.currentPaletteIndex + 1) % paletteKeys.length;
                 state.lastPaletteChange = timeNow;
                 const newPalette = paletteKeys[state.currentPaletteIndex];
-                
                 document.getElementById('param-palette').value = newPalette;
                 canopyMat.map = generateStripedTexture(newPalette);
                 canopyMat.needsUpdate = true;
@@ -699,7 +651,6 @@
             }
 
             physicsStep(dt);
-
             playerGroup.position.copy(state.position);
             heartMesh.rotation.x = Math.PI + (state.velocity.z * 0.02);
             heartMesh.rotation.y = (state.velocity.x * 0.02);
@@ -723,14 +674,11 @@
                 cameraPos.x += Math.sin(t * 1.5) * state.camShakeIntensity * speedFactor * 0.5;
                 cameraPos.y += Math.cos(t * 1.2) * state.camShakeIntensity * speedFactor * 0.3;
             }
-
             camera.position.copy(cameraPos);
             camera.lookAt(state.position.clone().add(new THREE.Vector3(0, -1, 0)));
-
             document.getElementById('hud-alt').innerText = state.position.y.toFixed(1) + ' m';
             document.getElementById('hud-speed').innerText = (state.velocity.length() * 3.6).toFixed(1) + ' km/h';
             document.getElementById('hud-vz').innerText = Math.abs(state.velocity.y).toFixed(1) + ' m/s';
-
             renderer.render(scene, camera);
         }
 
@@ -742,7 +690,7 @@
         function resetSimulation() {
             state.phase = 'FREEFALL'; state.position.set(0, CONFIG.startAltitude, 0);
             state.velocity.set(0, 0, 0); state.deployProgress = 0;
-            canopyMesh.scale.set(0.0001, 0.0001, 0.0001); 
+            canopyMesh.scale.setScalar(0.0001); 
             canopyMesh.position.y = CANOPY_ATTACH_HEIGHT;
             canopyMesh.visible = false;
             stringLines.visible = false;
@@ -767,13 +715,8 @@
             updateHeartScale();
         };
         document.getElementById('param-deploy').oninput = (e) => { state.deployAltitude = +e.target.value; document.getElementById('val-deploy').innerText = state.deployAltitude; };
-        document.getElementById('param-windx').oninput = (e) => { 
-            state.wind.x = +e.target.value; 
-            document.getElementById('val-windx').innerText = state.wind.x.toFixed(1); 
-        };
-        document.getElementById('param-auto-wind').onchange = (e) => {
-            state.autoWindActive = e.target.checked;
-        };
+        document.getElementById('param-windx').oninput = (e) => { state.wind.x = +e.target.value; document.getElementById('val-windx').innerText = state.wind.x.toFixed(1); };
+        document.getElementById('param-auto-wind').onchange = (e) => state.autoWindActive = e.target.checked;
         document.getElementById('param-time').oninput = (e) => { state.timeScale = +e.target.value; document.getElementById('val-time').innerText = state.timeScale.toFixed(1) + 'x'; };
         document.getElementById('cam-auto-rotate').onchange = (e) => state.camRotationActive = e.target.checked;
         document.getElementById('param-rot-speed').oninput = (e) => { state.camRotationSpeed = +e.target.value; document.getElementById('val-rot-speed').innerText = state.camRotationSpeed.toFixed(2); };
@@ -781,16 +724,8 @@
         document.getElementById('param-shake').oninput = (e) => { state.camShakeIntensity = +e.target.value; document.getElementById('val-shake').innerText = state.camShakeIntensity.toFixed(1); };
         document.getElementById('btn-reset-cam').onclick = () => { state.camPhi = Math.PI/3; state.camTheta = 0; state.camDistance = 25; };
         document.getElementById('btn-restart').onclick = resetSimulation;
-        
-        document.getElementById('param-shifter').onchange = (e) => {
-            state.shapeShifterActive = e.target.checked;
-            if (state.shapeShifterActive) state.lastShapeChange = performance.now();
-        };
-
-        document.getElementById('param-palette-auto').onchange = (e) => {
-            state.paletteAutoActive = e.target.checked;
-            if (state.paletteAutoActive) state.lastPaletteChange = performance.now();
-        };
+        document.getElementById('param-shifter').onchange = (e) => { state.shapeShifterActive = e.target.checked; if (state.shapeShifterActive) state.lastShapeChange = performance.now(); };
+        document.getElementById('param-palette-auto').onchange = (e) => { state.paletteAutoActive = e.target.checked; if (state.paletteAutoActive) state.lastPaletteChange = performance.now(); };
 
         function updatePalettePreview(paletteName) {
             const previewEl = document.getElementById('palette-preview');
@@ -829,12 +764,7 @@
             if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false;
         };
         window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
-        
-        window.onload = () => {
-            updateHeartScale(); 
-            updatePalettePreview('paired');
-            animate();
-        };
+        window.onload = () => { updateHeartScale(); updatePalettePreview('paired'); animate(); };
     </script>
 </body>
 </html>
