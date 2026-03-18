@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - v1.3 delta</title>
+    <title>3D Parachute Simulation - v1.33</title>
     <style>
         body {
             margin: 0;
@@ -243,10 +243,10 @@
                 </label>
             </div>
             <select id="param-palette">
-                <option value="paired">Paired-12</option>
-                <option value="paired10">Paired-10</option>
-                <option value="paired8">Paired-8</option>
-                <option value="paired6">Paired-6</option>
+                <option value="paired12">Rainbow-12</option>
+                <option value="paired10">Rainbow-10</option>
+                <option value="paired8">Rainbow-8</option>
+                <option value="paired6">Rainbow-6</option>
                 <option value="set3">Set3</option>
                 <option value="oranges">Oranges4</option>
                 <option value="blues">Blues4</option>
@@ -279,9 +279,9 @@
         };
 
         const PALETTES = {
-            paired:   ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
+            paired12: ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
             paired10: ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a'],
-            paired8:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
+            paired8:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00'],
             paired6:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c'],
             set3:     ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f'],
             oranges:  ['#feedde','#fdbe85','#fd8d3c','#d94701'],
@@ -419,7 +419,7 @@
             for(let i = 0; i < colors.length; i++) { ctx.fillStyle = colors[i]; ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height); }
             const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(2, 1); return texture;
         }
-        canopyMat.map = generateStripedTexture('paired');
+        canopyMat.map = generateStripedTexture('paired12');
 
         function updateCanopyShape(index) {
             if (canopyMesh.geometry) canopyMesh.geometry.dispose();
@@ -714,7 +714,7 @@
         window.onkeyup = (e) => { if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=false; if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false; };
         window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
         
-        window.onload = () => { updateHeartScale(); updatePalettePreview('paired'); animate(); };
+        window.onload = () => { updateHeartScale(); updatePalettePreview('paired12'); animate(); };
     </script>
 </body>
 </html>
