@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - ver 1.2 Rev A</title>
+    <title>3D Parachute Simulation - v1.3 delta</title>
     <style>
         body {
             margin: 0;
@@ -36,7 +36,7 @@
         #camera-settings { top: 220px; left: 20px; width: 220px; }
         #controls { top: 20px; right: 20px; width: 280px; }
         #style-settings { bottom: 20px; right: 20px; width: 280px; }
-        #instructions { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 14px; padding: 10px 20px; }
+        #instructions { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 14px; padding: 10px 20px; pointer-events: none; }
 
         .panel.collapsed-left { transform: translateX(calc(-100% + 40px)); }
         .panel.collapsed-right { transform: translateX(calc(100% - 40px)); }
@@ -104,6 +104,7 @@
 
         .checkbox-group { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
         .val-display { float: right; color: #4169E1; font-weight: bold; }
+        .val-display.warning { color: #ff4444; text-shadow: 0 0 8px rgba(255, 0, 0, 0.6); }
 
         button.action-btn {
             width: 100%;
@@ -149,18 +150,16 @@
             color: #ffda44;
             animation: pulse 2s infinite;
         }
-        .rainbow-icon {
-            font-size: 16px;
-            filter: drop-shadow(0 0 2px rgba(255,255,255,0.5));
-        }
-        .wind-icon {
-            font-size: 16px;
-            margin-right: 4px;
-        }
         @keyframes pulse {
             0% { opacity: 0.4; transform: scale(0.9); }
             50% { opacity: 1; transform: scale(1.1); }
             100% { opacity: 0.4; transform: scale(0.9); }
+        }
+        
+        #lbl-turbulence.heavy {
+            color: #ff4444 !important;
+            font-weight: bold;
+            text-shadow: 0 0 4px rgba(255,0,0,0.3);
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -186,10 +185,10 @@
             <label>Rotation Speed <span id="val-rot-speed" class="val-display">0.30</span></label>
             <input type="range" id="param-rot-speed" min="0" max="2" value="0.3" step="0.05">
         </div>
-        <label class="checkbox-group"><input type="checkbox" id="cam-turbulence" checked> Smooth Turbulence</label>
+        <label class="checkbox-group"><input type="checkbox" id="cam-turbulence" checked> <span id="lbl-turbulence">Turbulence</span></label>
         <div class="control-group">
             <label>Sway Intensity <span id="val-shake" class="val-display">1.5</span></label>
-            <input type="range" id="param-shake" min="0.1" max="10" value="1.5" step="0.1">
+            <input type="range" id="param-shake" min="0" max="10" value="1.5" step="0.1">
         </div>
         <button id="btn-reset-cam" class="action-btn">Reset View</button>
     </div>
@@ -208,7 +207,7 @@
         <div class="control-group">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label style="margin-bottom:0">Wind X (m/s) <span id="val-windx" class="val-display">5.0</span></label>
-                <label class="checkbox-group" style="margin-bottom:0"><span class="wind-icon">🌬️</span><input type="checkbox" id="param-auto-wind"></label>
+                <label class="checkbox-group" style="margin-bottom:0"><input type="checkbox" id="param-auto-wind"></label>
             </div>
             <input type="range" id="param-windx" min="-20" max="20" value="5" step="0.5">
         </div>
@@ -238,10 +237,7 @@
         
         <div class="control-group">
             <div class="shifter-label" style="margin-bottom: 4px;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="rainbow-icon">🌈</span>
-                    <label style="margin-bottom: 0;">Color Palette</label>
-                </div>
+                <label style="margin-bottom: 0;">🌈 Color Palette</label>
                 <label class="checkbox-group" style="margin-left: auto; margin-bottom: 0;">
                     <input type="checkbox" id="param-palette-auto">
                 </label>
@@ -266,8 +262,7 @@
     </div>
 
     <div id="instructions" class="panel">
-        <b>Mouse/Touch:</b> Drag to rotate view | Scroll to zoom<br>
-        <b>WASD / Arrows:</b> Steer Jumper
+        <b>Mouse:</b> Drag to rotate | Scroll to Zoom | <b>WASD:</b> Steer
     </div>
 
     <script>
@@ -279,13 +274,14 @@
             parachute: { Cd: 1.5, A: 44.0 }, 
             deployDuration: 2.0,
             steerForce: 150,
-            baseMass: 80 
+            baseMass: 80,
+            turbulenceHeightLimit: 60 
         };
 
         const PALETTES = {
             paired:   ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
             paired10: ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a'],
-            paired8:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00'],
+            paired8:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'],
             paired6:  ['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c'],
             set3:     ['#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f'],
             oranges:  ['#feedde','#fdbe85','#fd8d3c','#d94701'],
@@ -305,7 +301,6 @@
             let y = Math.sin(x / 1500) * Math.cos(z / 1500) * 250;
             y += Math.sin(x / 500 + z / 600) * 80;
             y += Math.sin(x / 150) * Math.cos(z / 150) * 20;
-            
             const distFromCenter = Math.sqrt(x*x + z*z);
             if (distFromCenter < 800) {
                 const falloff = distFromCenter / 800;
@@ -329,6 +324,8 @@
             camRotationSpeed: 0.3,
             camTurbulenceActive: true,
             camShakeIntensity: 1.5,
+            camShakeSmooth: 1.5,
+            turbulencePhase: 0,
             camPhi: Math.PI / 4,
             camTheta: 0,
             camDistance: 25,
@@ -341,46 +338,41 @@
             lastPaletteChange: 0,
             currentPaletteIndex: 0,
             autoWindActive: false,
-            autoWindDir: 1
+            autoWindDir: 1,
+            saltoPhase: 0,
+            currentSaltoAlpha: 0,
+            objTurbulenceOffset: new THREE.Vector3(0, 0, 0),
+            objTurbulenceRot: new THREE.Euler(0, 0, 0)
         };
-
-        function togglePanel(panelId, side) {
-            const panel = document.getElementById(panelId);
-            const className = side === 'left' ? 'collapsed-left' : 'collapsed-right';
-            panel.classList.toggle(className);
-        }
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); 
         scene.fog = new THREE.FogExp2(0x87CEEB, 0.0004);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(100, 500, 50);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        dirLight.position.set(200, 800, 100);
         dirLight.castShadow = true;
+        dirLight.shadow.camera.left = -2000; dirLight.shadow.camera.right = 2000;
+        dirLight.shadow.camera.top = 2000; dirLight.shadow.camera.bottom = -2000;
+        dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
 
-        const terrainSize = 20000;
-        const terrainSegments = 200;
-        const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, terrainSegments, terrainSegments);
+        const terrainGeo = new THREE.PlaneGeometry(24000, 24000, 400, 400);
         terrainGeo.rotateX(-Math.PI / 2);
-        
         const pos = terrainGeo.attributes.position;
         const colors = [];
         const colorObj = new THREE.Color();
-        
         for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i);
-            const z = pos.getZ(i);
-            const y = getTerrainHeight(x, z);
-            pos.setY(i, y);
-            
+            const x = pos.getX(i); const z = pos.getZ(i);
+            const y = getTerrainHeight(x, z); pos.setY(i, y);
             if (y < WATER_LEVEL + 4) colorObj.setHex(0xe8d69e);
             else if (y < 60) colorObj.setHex(0x557a2b);
             else if (y < 160) colorObj.setHex(0x2d4c1e);
@@ -390,164 +382,118 @@
         }
         terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         terrainGeo.computeVertexNormals();
-        
-        const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
+        const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
         terrain.receiveShadow = true;
         scene.add(terrain);
 
-        const waterGeo = new THREE.PlaneGeometry(terrainSize, terrainSize);
+        const waterGeo = new THREE.PlaneGeometry(24000, 24000, 100, 100);
         waterGeo.rotateX(-Math.PI / 2);
-        const waterMat = new THREE.MeshLambertMaterial({ color: 0x1e90ff, transparent: true, opacity: 0.75 });
-        const water = new THREE.Mesh(waterGeo, waterMat);
-        water.position.y = WATER_LEVEL;
-        water.receiveShadow = true;
+        const water = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x1e90ff, transparent: true, opacity: 0.7, metalness: 0.1, roughness: 0.2 }));
+        water.position.y = WATER_LEVEL; water.receiveShadow = true;
         scene.add(water);
-
-        const treeCount = 3000;
-        const trunkGeo = new THREE.CylinderGeometry(1, 1.5, 5, 5); trunkGeo.translate(0, 2.5, 0);
-        const leavesGeo = new THREE.ConeGeometry(5, 15, 6); leavesGeo.translate(0, 12.5, 0);
-        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3b2c });
-        const leavesMat = new THREE.MeshLambertMaterial({ color: 0x1a3311, flatShading: true });
-        const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, treeCount);
-        const leavesMesh = new THREE.InstancedMesh(leavesGeo, leavesMat, treeCount);
-        const dummy = new THREE.Object3D();
-        let placedTrees = 0;
-        for (let i = 0; i < treeCount * 5 && placedTrees < treeCount; i++) {
-            const rx = (Math.random() - 0.5) * terrainSize * 0.8;
-            const rz = (Math.random() - 0.5) * terrainSize * 0.8;
-            const ry = getTerrainHeight(rx, rz);
-            if (ry > 30 && ry < 150) {
-                dummy.position.set(rx, ry, rz); dummy.scale.setScalar(0.6 + Math.random() * 0.8);
-                dummy.rotation.y = Math.random() * Math.PI * 2; dummy.updateMatrix();
-                trunkMesh.setMatrixAt(placedTrees, dummy.matrix);
-                leavesMesh.setMatrixAt(placedTrees, dummy.matrix);
-                placedTrees++;
-            }
-        }
-        trunkMesh.count = placedTrees; leavesMesh.count = placedTrees;
-        scene.add(trunkMesh); scene.add(leavesMesh);
 
         const playerGroup = new THREE.Group();
         scene.add(playerGroup);
 
         const heartShape = new THREE.Shape();
-        heartShape.moveTo(0, 0);
-        heartShape.bezierCurveTo(0, 0.3, -0.6, 0.6, -0.6, 1.2);
-        heartShape.bezierCurveTo(-0.6, 1.8, 0, 1.8, 0, 1.2);
-        heartShape.bezierCurveTo(0, 1.8, 0.6, 1.8, 0.6, 1.2);
+        heartShape.moveTo(0, 0); heartShape.bezierCurveTo(0, 0.3, -0.6, 0.6, -0.6, 1.2);
+        heartShape.bezierCurveTo(-0.6, 1.8, 0, 1.8, 0, 1.2); heartShape.bezierCurveTo(0, 1.8, 0.6, 1.8, 0.6, 1.2);
         heartShape.bezierCurveTo(0.6, 0.6, 0, 0.3, 0, 0);
-
-        const extrudeSettings = { depth: 0.4, bevelEnabled: true, bevelSegments: 3, steps: 2, bevelSize: 0.15, bevelThickness: 0.15 };
-        const heartGeo = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+        const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.4, bevelEnabled: true, bevelSegments: 3, steps: 2, bevelSize: 0.15, bevelThickness: 0.15 });
         const heartMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.4, metalness: 0.3 });
         const heartMesh = new THREE.Mesh(heartGeo, heartMat);
         heartMesh.rotation.z = Math.PI; heartMesh.position.z = 0.2; heartMesh.castShadow = true;
         playerGroup.add(heartMesh);
 
         const CANOPY_ATTACH_HEIGHT = 5.0;
-
-        function generateStripedTexture(paletteName) {
-            const colors = PALETTES[paletteName];
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024; canvas.height = 1024;
-            const ctx = canvas.getContext('2d');
-            const stripeWidth = canvas.width / colors.length;
-            for(let i = 0; i < colors.length; i++) {
-                ctx.fillStyle = colors[i]; ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height);
-            }
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(2, 1); return texture;
-        }
-
         const canopyMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide, roughness: 0.8 });
-        canopyMat.map = generateStripedTexture('paired');
         const canopyMesh = new THREE.Mesh(new THREE.BufferGeometry(), canopyMat);
         canopyMesh.position.y = CANOPY_ATTACH_HEIGHT; canopyMesh.scale.setScalar(0.0001);
         playerGroup.add(canopyMesh);
 
+        function generateStripedTexture(paletteName) {
+            const colors = PALETTES[paletteName];
+            const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            const stripeWidth = canvas.width / colors.length;
+            for(let i = 0; i < colors.length; i++) { ctx.fillStyle = colors[i]; ctx.fillRect(i * stripeWidth, 0, stripeWidth, canvas.height); }
+            const texture = new THREE.CanvasTexture(canvas); texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(2, 1); return texture;
+        }
+        canopyMat.map = generateStripedTexture('paired');
+
         function updateCanopyShape(index) {
             if (canopyMesh.geometry) canopyMesh.geometry.dispose();
             let geo; let anchorPoints = [];
-            
             switch(index) {
                 case 0: // Hemispherical
-                    geo = new THREE.SphereGeometry(3.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-                    for(let i=0; i<16; i++) {
-                        let a = (i/16)*Math.PI*2; anchorPoints.push(new THREE.Vector3(Math.cos(a)*3.5, 0, Math.sin(a)*3.5));
-                    }
-                    break;
+                    geo = new THREE.SphereGeometry(4.5, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+                    for(let i=0; i<16; i++) { let a = (i/16)*Math.PI*2; anchorPoints.push(new THREE.Vector3(Math.cos(a)*4.5, 0, Math.sin(a)*4.5)); } break;
                 case 1: // Annular
-                    const aPts = [];
-                    const innerRadius = 0.6; const outerRadius = 3.5;
-                    for (let i = 0; i <= 20; i++) {
-                        let t = i / 20; 
-                        let r = innerRadius + t * (outerRadius - innerRadius);
-                        let y = Math.sin(t * Math.PI) * 1.8;
-                        aPts.push(new THREE.Vector2(r, y));
-                    }
-                    geo = new THREE.LatheGeometry(aPts, 32);
-                    for(let i=0; i<16; i++) {
-                        let a = (i/16)*Math.PI*2;
-                        anchorPoints.push(new THREE.Vector3(Math.cos(a)*outerRadius, 0, Math.sin(a)*outerRadius));
-                    }
-                    break;
+                    const aPts = []; for (let i = 0; i <= 20; i++) { let t = i / 20; let r = 0.8 + t * 3.7; let y = Math.sin(t * Math.PI) * 2.2; aPts.push(new THREE.Vector2(r, y)); }
+                    geo = new THREE.LatheGeometry(aPts, 32); 
+                    for(let i=0; i<16; i++) { let a = (i/16)*Math.PI*2; anchorPoints.push(new THREE.Vector3(Math.cos(a)*4.5, 0, Math.sin(a)*4.5)); } break;
                 case 2: // Cruciform
-                    const w = 1.2, l = 3.5;
-                    const crossShape = new THREE.Shape();
-                    crossShape.moveTo(-w, -l); crossShape.lineTo(w, -l); crossShape.lineTo(w, -w);
-                    crossShape.lineTo(l, -w); crossShape.lineTo(l, w); crossShape.lineTo(w, w);
-                    crossShape.lineTo(w, l); crossShape.lineTo(-w, l); crossShape.lineTo(-w, w);
-                    crossShape.lineTo(-l, w); crossShape.lineTo(-l, -w); crossShape.lineTo(-w, -w);
-                    crossShape.lineTo(-w, -l);
-                    geo = new THREE.ExtrudeGeometry(crossShape, { depth: 0.05, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 });
+                    const w = 1.8, l = 4.8; const crossShape = new THREE.Shape(); 
+                    crossShape.moveTo(-w,-l); crossShape.lineTo(w,-l); crossShape.lineTo(w,-w); crossShape.lineTo(l,-w); crossShape.lineTo(l,w); crossShape.lineTo(w,w); crossShape.lineTo(w,l); crossShape.lineTo(-w,l); crossShape.lineTo(-w,w); crossShape.lineTo(-l,w); crossShape.lineTo(-l,-w); crossShape.lineTo(-w,-w); crossShape.lineTo(-w,-l);
+                    geo = new THREE.ExtrudeGeometry(crossShape, { depth: 0.1, bevelEnabled: true, bevelSegments: 3, steps: 1, bevelSize: 0.1, bevelThickness: 0.1 }); 
                     geo.rotateX(Math.PI / 2); geo.center();
-                    const cPos = geo.attributes.position;
-                    for(let i=0; i<cPos.count; i++) {
-                        let x = cPos.getX(i); let z = cPos.getZ(i);
-                        let droop = (x*x + z*z) * 0.12; cPos.setY(i, cPos.getY(i) - droop + 1.2); 
+                    const cPos = geo.attributes.position; 
+                    for(let i=0; i<cPos.count; i++) { 
+                        let x = cPos.getX(i); let z = cPos.getZ(i); 
+                        let droop = (x*x + z*z) * 0.12; 
+                        cPos.setY(i, cPos.getY(i) - droop + 1.2); 
                     }
-                    geo.computeVertexNormals();
-                    [[w,l],[-w,l],[w,-l],[-w,-l],[l,w],[l,-w],[-l,w],[-l,-w]].forEach(c => {
+                    geo.computeVertexNormals(); 
+                    [[w,l],[-w,l],[w,-l],[-w,-l],[l,w],[l,-w],[-l,w],[-l,-w]].forEach(c => { 
                         let d = (c[0]*c[0] + c[1]*c[1]) * 0.12; 
-                        anchorPoints.push(new THREE.Vector3(c[0], 1.2 - d - 0.05, c[1]));
-                    });
-                    break;
+                        anchorPoints.push(new THREE.Vector3(c[0], 1.2 - d, c[1])); 
+                    }); break;
                 case 3: // Ram-Air
-                    geo = new THREE.BoxGeometry(7, 0.4, 3.5, 16, 1, 1);
-                    const pos2 = geo.attributes.position;
-                    for(let i=0; i<pos2.count; i++) {
-                        let x = pos2.getX(i); pos2.setY(i, pos2.getY(i) - (x*x)*0.035); 
-                    }
-                    geo.computeVertexNormals();
-                    for(let i=0; i<5; i++) {
-                        let x = -3.5 + (i * 1.75); let archY = -(x*x)*0.035 - 0.2; 
-                        for(let j=0; j<4; j++) anchorPoints.push(new THREE.Vector3(x, archY, -1.75 + (j * 1.16)));
-                    }
-                    break;
+                    geo = new THREE.BoxGeometry(8, 0.5, 4.2, 16, 1, 1); 
+                    const pos2 = geo.attributes.position; 
+                    for(let i=0; i<pos2.count; i++) { let x = pos2.getX(i); pos2.setY(i, pos2.getY(i) - (x*x)*0.035); }
+                    geo.computeVertexNormals(); 
+                    for(let i=0; i<5; i++) { 
+                        let x = -4 + (i * 2.0); 
+                        let archY = -(x*x)*0.035 - 0.25; 
+                        for(let j=0; j<4; j++) anchorPoints.push(new THREE.Vector3(x, archY, -2.1 + (j * 1.4))); 
+                    } break;
             }
-            canopyMesh.geometry = geo;
-            canopyMesh.userData.anchorPoints = anchorPoints;
+            canopyMesh.geometry = geo; canopyMesh.userData.anchorPoints = anchorPoints;
         }
-
         updateCanopyShape(0);
 
         const stringsGeo = new THREE.BufferGeometry();
         const stringLines = new THREE.LineSegments(stringsGeo, new THREE.LineBasicMaterial({ color: 0x4169E1, transparent: true, opacity: 0.8 }));
         playerGroup.add(stringLines);
         
-        function updateStrings(scale) {
-            if (scale < 0.001) { stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3)); return; }
-            const curScale = heartMesh.scale.x; 
-            const attachL = new THREE.Vector3(-0.4 * (curScale/1.5), heartMesh.position.y + 0.8 * (curScale/1.5), 0.1); 
-            const attachR = new THREE.Vector3(0.4 * (curScale/1.5), heartMesh.position.y + 0.8 * (curScale/1.5), 0.1);
-            const pts = []; const anchors = canopyMesh.userData.anchorPoints || [];
-            const tempQuat = new THREE.Quaternion(); canopyMesh.getWorldQuaternion(tempQuat);
+        // This function now uses the canopy's world matrix to ensure PERFECT attachment
+        function updateStrings() {
+            if (canopyMesh.scale.x < 0.001) { 
+                stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3)); 
+                return; 
+            }
+
+            const curHeartScale = heartMesh.scale.x; 
+            // Attachment points relative to heart
+            const attachL = new THREE.Vector3(-0.4 * (curHeartScale/1.5), heartMesh.position.y + 0.8 * (curHeartScale/1.5), 0.1); 
+            const attachR = new THREE.Vector3(0.4 * (curHeartScale/1.5), heartMesh.position.y + 0.8 * (curHeartScale/1.5), 0.1);
+            
+            const pts = []; 
+            const anchors = canopyMesh.userData.anchorPoints || [];
+            
+            // We must update the canopy matrix manually if we haven't rendered yet
+            canopyMesh.updateMatrix();
+            const canopyWorldMatrix = canopyMesh.matrix;
+
             for(let i = 0; i < anchors.length; i++) {
-                const rimPos = anchors[i].clone().multiplyScalar(scale).applyQuaternion(tempQuat);
+                // Transform the anchor point from the canopy's local geometry space to playerGroup space
+                const rimPos = anchors[i].clone().applyMatrix4(canopyWorldMatrix);
+                
+                // Determine which heart attach point to use
                 const anchor = (anchors[i].x < -0.01) ? attachL : ((anchors[i].x > 0.01) ? attachR : ((i % 2 === 0) ? attachL : attachR));
-                pts.push(anchor.x, anchor.y, anchor.z, rimPos.x, rimPos.y + CANOPY_ATTACH_HEIGHT, rimPos.z);
+                
+                pts.push(anchor.x, anchor.y, anchor.z, rimPos.x, rimPos.y, rimPos.z);
             }
             stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
             stringsGeo.attributes.position.needsUpdate = true;
@@ -556,8 +502,7 @@
         function calculateDrag(velocity, wind, currentCd, currentArea) {
             const airVel = new THREE.Vector3().subVectors(velocity, wind); const speed = airVel.length();
             if (speed < 0.01) return new THREE.Vector3(0,0,0);
-            const dragMag = 0.5 * CONFIG.airDensity * currentCd * currentArea * speed * speed;
-            return airVel.clone().normalize().multiplyScalar(-dragMag);
+            return airVel.clone().normalize().multiplyScalar(-0.5 * CONFIG.airDensity * currentCd * currentArea * speed * speed);
         }
 
         function physicsStep(dt) {
@@ -569,127 +514,158 @@
                 const ease = 1 - Math.pow(1 - Math.min(state.deployProgress, 1.0), 3);
                 cd = THREE.MathUtils.lerp(CONFIG.freefall.Cd, CONFIG.parachute.Cd, ease);
                 area = THREE.MathUtils.lerp(CONFIG.freefall.A, CONFIG.parachute.A, ease);
-                canopyMesh.scale.setScalar(ease); canopyMesh.visible = true; stringLines.visible = true; updateStrings(ease);
+                canopyMesh.scale.setScalar(ease); 
+                canopyMesh.visible = true; 
+                stringLines.visible = true; 
             } else if (state.phase === 'DEPLOYED') { 
-                cd = CONFIG.parachute.Cd; area = CONFIG.parachute.A; canopyMesh.scale.setScalar(1.0); updateStrings(1.0); 
-            } else { canopyMesh.visible = false; stringLines.visible = false; updateStrings(0); }
+                cd = CONFIG.parachute.Cd; 
+                area = CONFIG.parachute.A; 
+                canopyMesh.scale.setScalar(1.0); 
+            } else { 
+                canopyMesh.visible = false; 
+                stringLines.visible = false; 
+            }
             const forces = new THREE.Vector3(0, -state.mass * CONFIG.gravity, 0);
             forces.add(calculateDrag(state.velocity, state.wind, cd, area));
             if (state.keys.up) forces.z -= CONFIG.steerForce; if (state.keys.down) forces.z += CONFIG.steerForce;
             if (state.keys.left) forces.x -= CONFIG.steerForce; if (state.keys.right) forces.x += CONFIG.steerForce;
-            state.velocity.addScaledVector(forces.divideScalar(state.mass), dt);
-            state.position.addScaledVector(state.velocity, dt);
+            state.velocity.addScaledVector(forces.divideScalar(state.mass), dt); state.position.addScaledVector(state.velocity, dt);
             if (state.phase === 'FREEFALL' && state.position.y <= state.deployAltitude) { state.phase = 'DEPLOYING'; updateHUDState(); }
+            const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
             
-            // Fixed Landing Collision: heartMesh position offset is accounted for to prevent burying
-            const currentGroundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
             const bottomOffset = Math.abs(heartMesh.position.y);
-            if (state.position.y <= currentGroundY + bottomOffset) {
-                state.position.y = currentGroundY + bottomOffset; 
+            
+            if (state.position.y <= groundY + bottomOffset) { 
+                state.position.y = groundY + bottomOffset; 
                 state.velocity.set(0, 0, 0); 
                 state.phase = 'LANDED'; 
                 updateHUDState(); 
                 canopyMesh.visible = false; 
-                stringLines.visible = false;
+                stringLines.visible = false; 
             }
+        }
+
+        function togglePanel(panelId, side) {
+            const panel = document.getElementById(panelId);
+            const className = side === 'left' ? 'collapsed-left' : 'collapsed-right';
+            panel.classList.toggle(className);
         }
 
         let lastTime = performance.now();
         function animate() {
             requestAnimationFrame(animate); const timeNow = performance.now();
             let rawDt = Math.min((timeNow - lastTime) / 1000, 0.1) * state.timeScale; lastTime = timeNow;
-
-            // PHYSICS SUB-STEPPING (Fix for high time scales)
-            // We split the large frame delta into smaller 1/60th second steps 
-            // to ensure physics triggers (like deployment) aren't skipped.
-            const subStepSize = 0.016; 
-            let remainingDt = rawDt;
-            while (remainingDt > 0) {
-                let currentSubStep = Math.min(remainingDt, subStepSize);
-                physicsStep(currentSubStep);
-                remainingDt -= currentSubStep;
-            }
+            let remainingDt = rawDt; while (remainingDt > 0) { let step = Math.min(remainingDt, 0.016); physicsStep(step); remainingDt -= step; }
 
             if (state.autoWindActive) {
-                state.wind.x += state.autoWindDir * 10 * rawDt;
-                if (Math.abs(state.wind.x) >= 20) state.autoWindDir *= -1;
-                document.getElementById('param-windx').value = state.wind.x;
-                document.getElementById('val-windx').innerText = state.wind.x.toFixed(1);
+                state.wind.x += state.autoWindDir * 10 * rawDt; if (Math.abs(state.wind.x) >= 20) state.autoWindDir *= -1;
+                document.getElementById('param-windx').value = state.wind.x; document.getElementById('val-windx').innerText = state.wind.x.toFixed(1);
             }
 
             if (state.shapeShifterActive && timeNow - state.lastShapeChange > 3000) {
-                state.currentShapeIndex = (state.currentShapeIndex + 1) % SHAPE_NAMES.length;
-                state.lastShapeChange = timeNow; document.getElementById('param-shape').value = state.currentShapeIndex;
-                document.getElementById('val-shape').innerText = SHAPE_NAMES[state.currentShapeIndex];
-                updateCanopyShape(state.currentShapeIndex); updateStrings(state.phase === 'DEPLOYED' ? 1 : (state.phase === 'DEPLOYING' ? state.deployProgress : 0));
+                state.currentShapeIndex = (state.currentShapeIndex + 1) % SHAPE_NAMES.length; state.lastShapeChange = timeNow;
+                document.getElementById('param-shape').value = state.currentShapeIndex; document.getElementById('val-shape').innerText = SHAPE_NAMES[state.currentShapeIndex];
+                updateCanopyShape(state.currentShapeIndex); 
             }
 
             if (state.paletteAutoActive && timeNow - state.lastPaletteChange > 4000) {
-                const keys = Object.keys(PALETTES); state.currentPaletteIndex = (state.currentPaletteIndex + 1) % keys.length;
-                state.lastPaletteChange = timeNow; const p = keys[state.currentPaletteIndex];
-                document.getElementById('param-palette').value = p; canopyMat.map = generateStripedTexture(p); updatePalettePreview(p);
+                const keys = Object.keys(PALETTES); state.currentPaletteIndex = (state.currentPaletteIndex + 1) % keys.length; state.lastPaletteChange = timeNow;
+                const p = keys[state.currentPaletteIndex]; document.getElementById('param-palette').value = p; canopyMat.map = generateStripedTexture(p); updatePalettePreview(p);
             }
 
-            playerGroup.position.copy(state.position);
-            heartMesh.rotation.x = Math.PI + (state.velocity.z * 0.02); heartMesh.rotation.y = (state.velocity.x * 0.02);
-            if(state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
-                canopyMesh.rotation.x = state.velocity.z * 0.015; canopyMesh.rotation.z = -state.velocity.x * 0.015;
-                updateStrings(state.phase === 'DEPLOYED' ? 1.0 : (1 - Math.pow(1 - state.deployProgress, 3)));
-            }
-            if (state.camRotationActive) state.camTheta += rawDt * state.camRotationSpeed;
-            let cameraPos = state.position.clone().add(new THREE.Vector3(state.camDistance * Math.sin(state.camPhi) * Math.sin(state.camTheta), state.camDistance * Math.cos(state.camPhi), state.camDistance * Math.sin(state.camPhi) * Math.cos(state.camTheta)));
+            state.camShakeSmooth = THREE.MathUtils.lerp(state.camShakeSmooth, state.camShakeIntensity, 0.1);
+
+            const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
+            const bottomOffset = Math.abs(heartMesh.position.y);
+            const trueAltitude = Math.max(0, (state.position.y - bottomOffset) - groundY);
+            
+            let heightFade = trueAltitude < CONFIG.turbulenceHeightLimit ? trueAltitude / CONFIG.turbulenceHeightLimit : 1.0;
+            if (state.phase === 'LANDED') heightFade = 0;
+
             if (state.camTurbulenceActive && state.phase !== 'LANDED') {
-                const t = timeNow * 0.001; const sf = Math.min(state.velocity.length() / 20, 1.5);
-                cameraPos.x += Math.sin(t * 1.5) * state.camShakeIntensity * sf * 0.5;
-                cameraPos.y += Math.cos(t * 1.2) * state.camShakeIntensity * sf * 0.3;
+                const intensityNorm = state.camShakeSmooth / 10.0;
+                const freqBase = 0.8 + (intensityNorm * 0.9);
+                state.turbulencePhase += rawDt * freqBase;
+                const baseRadius = 0.4 + intensityNorm * 1.5;
+                const aggroBoost = Math.pow(intensityNorm, 4) * 2.5;
+                const totalRadius = Math.min(4.5, (baseRadius + aggroBoost)) * heightFade;
+
+                state.objTurbulenceOffset.x = Math.sin(state.turbulencePhase) * totalRadius;
+                state.objTurbulenceOffset.y = Math.cos(state.turbulencePhase * 0.7) * (totalRadius * 0.25);
+                state.objTurbulenceOffset.z = Math.cos(state.turbulencePhase * 1.1) * totalRadius;
+
+                const tiltWeight = Math.pow(intensityNorm, 2) * 0.2;
+                state.objTurbulenceRot.x = Math.sin(state.turbulencePhase) * tiltWeight;
+                state.objTurbulenceRot.z = Math.cos(state.turbulencePhase * 0.9) * tiltWeight;
+            } else {
+                state.objTurbulenceOffset.lerp(new THREE.Vector3(0,0,0), 0.05);
+                state.objTurbulenceRot.x *= 0.95; state.objTurbulenceRot.z *= 0.95;
             }
-            camera.position.copy(cameraPos); camera.lookAt(state.position.clone().add(new THREE.Vector3(0, -1, 0)));
-            const gY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
-            let displayAlt = state.phase === 'LANDED' ? 0.0 : Math.max(0, (state.position.y - Math.abs(heartMesh.position.y)) - gY);
-            document.getElementById('hud-alt').innerText = displayAlt.toFixed(1) + ' m';
+
+            const threshold = 9.2;
+            const targetSaltoAlpha = (state.camShakeSmooth >= threshold) ? 
+                Math.min(1.0, (state.camShakeSmooth - threshold) / (10.0 - threshold)) : 0;
+            state.currentSaltoAlpha = THREE.MathUtils.lerp(state.currentSaltoAlpha, targetSaltoAlpha, 0.02);
+
+            if (state.currentSaltoAlpha > 0.001 && state.phase !== 'LANDED') {
+                state.saltoPhase += rawDt * (state.velocity.length() * 0.15) * state.currentSaltoAlpha;
+                playerGroup.rotation.x = Math.sin(state.saltoPhase) * Math.PI * 2 * state.currentSaltoAlpha;
+            } else {
+                playerGroup.rotation.x = THREE.MathUtils.lerp(playerGroup.rotation.x, 0, 0.05);
+            }
+
+            playerGroup.position.copy(state.position).add(state.objTurbulenceOffset);
+            heartMesh.rotation.set(0, 0, Math.PI);
+            heartMesh.rotation.x = Math.PI + (state.velocity.z * 0.02) + state.objTurbulenceRot.x; 
+            heartMesh.rotation.y = (state.velocity.x * 0.02);
+            heartMesh.rotation.z = Math.PI + state.objTurbulenceRot.z;
+            
+            if(state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
+                canopyMesh.rotation.set(0, 0, 0);
+                canopyMesh.rotation.x = state.velocity.z * 0.015 + state.objTurbulenceRot.x * 0.5; 
+                canopyMesh.rotation.z = -state.velocity.x * 0.015 + state.objTurbulenceRot.z * 0.5;
+            }
+            
+            // ALWAYS update strings to ensure they follow canopy rotation/tilt/scale exactly
+            updateStrings();
+
+            if (state.camRotationActive) state.camTheta += rawDt * state.camRotationSpeed;
+            const relX = state.camDistance * Math.sin(state.camPhi) * Math.sin(state.camTheta);
+            const relY = state.camDistance * Math.cos(state.camPhi);
+            const relZ = state.camDistance * Math.sin(state.camPhi) * Math.cos(state.camTheta);
+            camera.position.set(state.position.x + relX, state.position.y + relY, state.position.z + relZ);
+            camera.lookAt(state.position);
+
+            document.getElementById('hud-alt').innerText = trueAltitude.toFixed(1) + ' m';
             document.getElementById('hud-speed').innerText = (state.velocity.length() * 3.6).toFixed(1) + ' km/h';
             document.getElementById('hud-vz').innerText = Math.abs(state.velocity.y).toFixed(1) + ' m/s';
             renderer.render(scene, camera);
         }
 
         function updateHUDState() { const el = document.getElementById('hud-state'); el.innerText = state.phase; el.className = 'stat-value status-' + state.phase; }
+        
         function resetSimulation() {
             state.phase = 'FREEFALL'; state.position.set(0, CONFIG.startAltitude, 0); state.velocity.set(0, 0, 0); state.deployProgress = 0;
+            state.saltoPhase = 0; state.currentSaltoAlpha = 0; playerGroup.rotation.x = 0;
+            state.turbulencePhase = 0;
             canopyMesh.scale.setScalar(0.0001); canopyMesh.visible = false; stringLines.visible = false;
-            updateHeartScale(); updateStrings(0); updateHUDState();
+            updateHeartScale(); updateHUDState();
         }
 
         function updateHeartScale() {
             const finalScale = 1.5 * Math.pow(state.mass / CONFIG.baseMass, 0.33); heartMesh.scale.setScalar(finalScale); heartMesh.position.y = -1.8 * finalScale; 
-            if (state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') updateStrings(state.phase === 'DEPLOYED' ? 1.0 : state.deployProgress);
         }
 
-        // --- Interaction Handlers (Mouse + Touch) ---
-        function handleDragStart(x, y, target) {
-            if (target.closest('.panel')) return;
-            state.isDragging = true;
-            state.lastMousePos = { x, y };
-        }
-
-        function handleDragMove(x, y) {
-            if (!state.isDragging) return;
-            state.camTheta -= (x - state.lastMousePos.x) * 0.01;
-            state.camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, state.camPhi - (y - state.lastMousePos.y) * 0.01));
-            state.lastMousePos = { x, y };
-        }
+        function handleDragStart(x, y, target) { if (target.closest('.panel')) return; state.isDragging = true; state.lastMousePos = { x, y }; }
+        function handleDragMove(x, y) { if (!state.isDragging) return; state.camTheta -= (x - state.lastMousePos.x) * 0.01;
+            state.camPhi = Math.max(0.1, Math.min(Math.PI - 0.1, state.camPhi - (y - state.lastMousePos.y) * 0.01)); state.lastMousePos = { x, y }; }
 
         window.addEventListener('mousedown', (e) => handleDragStart(e.clientX, e.clientY, e.target));
         window.addEventListener('touchstart', (e) => handleDragStart(e.touches[0].clientX, e.touches[0].clientY, e.target));
-        
         window.addEventListener('mouseup', () => state.isDragging = false);
         window.addEventListener('touchend', () => state.isDragging = false);
-        
         window.addEventListener('mousemove', (e) => handleDragMove(e.clientX, e.clientY));
-        window.addEventListener('touchmove', (e) => {
-            handleDragMove(e.touches[0].clientX, e.touches[0].clientY);
-            if (state.isDragging) e.preventDefault(); 
-        }, { passive: false });
-
+        window.addEventListener('touchmove', (e) => { handleDragMove(e.touches[0].clientX, e.touches[0].clientY); if (state.isDragging) e.preventDefault(); }, { passive: false });
         window.addEventListener('wheel', (e) => state.camDistance = Math.max(5, Math.min(100, state.camDistance + e.deltaY * 0.05)));
 
         document.getElementById('param-mass').oninput = (e) => { state.mass = +e.target.value; document.getElementById('val-mass').innerText = state.mass; updateHeartScale(); };
@@ -700,14 +676,30 @@
         document.getElementById('cam-auto-rotate').onchange = (e) => state.camRotationActive = e.target.checked;
         document.getElementById('param-rot-speed').oninput = (e) => { state.camRotationSpeed = +e.target.value; document.getElementById('val-rot-speed').innerText = state.camRotationSpeed.toFixed(2); };
         document.getElementById('cam-turbulence').onchange = (e) => state.camTurbulenceActive = e.target.checked;
-        document.getElementById('param-shake').oninput = (e) => { state.camShakeIntensity = +e.target.value; document.getElementById('val-shake').innerText = state.camShakeIntensity.toFixed(1); };
+        
+        document.getElementById('param-shake').oninput = (e) => { 
+            state.camShakeIntensity = +e.target.value; 
+            const valDisplay = document.getElementById('val-shake');
+            const lblTurbulence = document.getElementById('lbl-turbulence');
+            valDisplay.innerText = state.camShakeIntensity.toFixed(1); 
+            if (state.camShakeIntensity >= 9.2) {
+                valDisplay.classList.add('warning');
+                lblTurbulence.innerHTML = "🌀 Real Roller Coaster!";
+                lblTurbulence.classList.add('heavy');
+            } else {
+                valDisplay.classList.remove('warning');
+                lblTurbulence.innerText = "Turbulence";
+                lblTurbulence.classList.remove('heavy');
+            }
+        };
+
         document.getElementById('btn-reset-cam').onclick = () => { state.camPhi = Math.PI/3; state.camTheta = 0; state.camDistance = 25; };
         document.getElementById('btn-restart').onclick = resetSimulation;
         document.getElementById('param-shifter').onchange = (e) => { state.shapeShifterActive = e.target.checked; if (state.shapeShifterActive) state.lastShapeChange = performance.now(); };
         document.getElementById('param-palette-auto').onchange = (e) => { state.paletteAutoActive = e.target.checked; if (state.paletteAutoActive) state.lastPaletteChange = performance.now(); };
         document.getElementById('param-shape').oninput = (e) => {
             const idx = parseInt(e.target.value); state.currentShapeIndex = idx; document.getElementById('val-shape').innerText = SHAPE_NAMES[idx];
-            updateCanopyShape(idx); updateStrings(state.phase === 'DEPLOYED' ? 1.0 : (state.phase === 'DEPLOYING' ? state.deployProgress : 0));
+            updateCanopyShape(idx); 
         };
         document.getElementById('param-palette').onchange = (e) => {
             const v = e.target.value; canopyMat.map = generateStripedTexture(v); updatePalettePreview(v); state.currentPaletteIndex = Object.keys(PALETTES).indexOf(v);
@@ -718,15 +710,10 @@
             PALETTES[p].forEach(c => { const s = document.createElement('span'); s.className = 'palette-color'; s.style.backgroundColor = c; el.appendChild(s); });
         }
 
-        window.onkeydown = (e) => {
-            if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=true; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=true;
-            if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=true;
-        };
-        window.onkeyup = (e) => {
-            if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=false;
-            if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false;
-        };
+        window.onkeydown = (e) => { if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=true; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=true; if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=true; };
+        window.onkeyup = (e) => { if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=false; if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false; };
         window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
+        
         window.onload = () => { updateHeartScale(); updatePalettePreview('paired'); animate(); };
     </script>
 </body>
