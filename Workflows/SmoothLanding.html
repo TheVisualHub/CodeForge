@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - v1.33</title>
+    <title>3D Parachute Simulation - v1.4</title>
     <style>
         body {
             margin: 0;
@@ -34,6 +34,7 @@
 
         #hud { top: 20px; left: 20px; width: 220px; }
         #camera-settings { top: 220px; left: 20px; width: 220px; }
+        #weather-settings { bottom: 20px; left: 20px; width: 220px; }
         #controls { top: 20px; right: 20px; width: 280px; }
         #style-settings { bottom: 20px; right: 20px; width: 280px; }
         #instructions { bottom: 20px; left: 50%; transform: translateX(-50%); text-align: center; font-size: 14px; padding: 10px 20px; pointer-events: none; }
@@ -63,7 +64,7 @@
             border-color: white;
         }
 
-        #hud .panel-toggle, #camera-settings .panel-toggle { right: 8px; }
+        #hud .panel-toggle, #camera-settings .panel-toggle, #weather-settings .panel-toggle { right: 8px; }
         #controls .panel-toggle, #style-settings .panel-toggle { left: 8px; }
 
         h2 {
@@ -161,6 +162,35 @@
             font-weight: bold;
             text-shadow: 0 0 4px rgba(255,0,0,0.3);
         }
+
+        .meteo-grid {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .meteo-btn {
+            flex: 1;
+            aspect-ratio: 1;
+            background: rgba(65, 105, 225, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            color: white;
+        }
+        .meteo-btn:hover {
+            background: rgba(65, 105, 225, 0.4);
+            border-color: white;
+        }
+        .meteo-btn.active {
+            background: rgba(65, 105, 225, 0.8);
+            border-color: white;
+            box-shadow: 0 0 10px rgba(65, 105, 225, 0.5);
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
@@ -191,6 +221,16 @@
             <input type="range" id="param-shake" min="0" max="10" value="1.5" step="0.1">
         </div>
         <button id="btn-reset-cam" class="action-btn">Reset View</button>
+    </div>
+
+    <div id="weather-settings" class="panel">
+        <button class="panel-toggle" onclick="togglePanel('weather-settings', 'left')">⛈️</button>
+        <h2>METEO</h2>
+        <div class="meteo-grid">
+            <button class="meteo-btn active" onclick="setWeather('normal')" id="btn-weather-normal">☀️</button>
+            <button class="meteo-btn" onclick="setWeather('night')" id="btn-weather-night">🌌</button>
+            <button class="meteo-btn" onclick="setWeather('blizzard')" id="btn-weather-blizzard">❄️</button>
+        </div>
     </div>
 
     <div id="controls" class="panel">
@@ -342,53 +382,101 @@
             saltoPhase: 0,
             currentSaltoAlpha: 0,
             objTurbulenceOffset: new THREE.Vector3(0, 0, 0),
-            objTurbulenceRot: new THREE.Euler(0, 0, 0)
+            objTurbulenceRot: new THREE.Euler(0, 0, 0),
+            weather: 'normal'
         };
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x87CEEB); 
         scene.fog = new THREE.FogExp2(0x87CEEB, 0.0004);
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 10000);
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 15000);
         const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+        scene.add(ambientLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
         dirLight.position.set(200, 800, 100);
         dirLight.castShadow = true;
-        dirLight.shadow.camera.left = -2000; dirLight.shadow.camera.right = 2000;
-        dirLight.shadow.camera.top = 2000; dirLight.shadow.camera.bottom = -2000;
-        dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
         scene.add(dirLight);
+
+        // This light will follow the parachute and provide top-down lighting in dark/snowy modes
+        const moonLight = new THREE.PointLight(0x88aaff, 0, 150);
+        moonLight.castShadow = false;
+        scene.add(moonLight);
+
+        const starGeo = new THREE.BufferGeometry();
+        const starPtsCount = 30000; // Refined count
+        const starPts = new Float32Array(starPtsCount * 3);
+        const starColors = new Float32Array(starPtsCount * 3);
+        for(let i=0; i<starPtsCount; i++) {
+            const radius = 8000 + Math.random() * 1000;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            starPts[i*3] = radius * Math.sin(phi) * Math.cos(theta);
+            starPts[i*3+1] = radius * Math.sin(phi) * Math.sin(theta);
+            starPts[i*3+2] = radius * Math.cos(phi);
+            const color = new THREE.Color().setHSL(0.6 + Math.random() * 0.1, 0.7, 0.6 + Math.random() * 0.3);
+            starColors[i*3] = color.r; starColors[i*3+1] = color.g; starColors[i*3+2] = color.b;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPts, 3));
+        starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+        const starMat = new THREE.PointsMaterial({ vertexColors: true, size: 2.2, sizeAttenuation: true, transparent: true, opacity: 0.9 });
+        const starSystem = new THREE.Points(starGeo, starMat);
+        starSystem.visible = false;
+        scene.add(starSystem);
+
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPtsCount = 60000; // REFINED: Increased Resolution
+        const snowPositions = new Float32Array(snowPtsCount * 3);
+        const snowVols = new Float32Array(snowPtsCount);
+        const snowArea = 120;
+        for(let i=0; i<snowPtsCount; i++) {
+            snowPositions[i*3] = THREE.MathUtils.randFloatSpread(snowArea);
+            snowPositions[i*3+1] = THREE.MathUtils.randFloatSpread(snowArea);
+            snowPositions[i*3+2] = THREE.MathUtils.randFloatSpread(snowArea);
+            snowVols[i] = 0.4 + Math.random() * 0.6;
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+        const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.7, sizeAttenuation: true });
+        const snowSystem = new THREE.Points(snowGeo, snowMat);
+        snowSystem.visible = false;
+        scene.add(snowSystem);
 
         const terrainGeo = new THREE.PlaneGeometry(24000, 24000, 400, 400);
         terrainGeo.rotateX(-Math.PI / 2);
-        const pos = terrainGeo.attributes.position;
-        const colors = [];
-        const colorObj = new THREE.Color();
-        for (let i = 0; i < pos.count; i++) {
-            const x = pos.getX(i); const z = pos.getZ(i);
-            const y = getTerrainHeight(x, z); pos.setY(i, y);
-            if (y < WATER_LEVEL + 4) colorObj.setHex(0xe8d69e);
-            else if (y < 60) colorObj.setHex(0x557a2b);
-            else if (y < 160) colorObj.setHex(0x2d4c1e);
-            else if (y < 220) colorObj.setHex(0x6e7b6d);
-            else colorObj.setHex(0xffffff);
-            colors.push(colorObj.r, colorObj.g, colorObj.b);
-        }
-        terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-        terrainGeo.computeVertexNormals();
-        const terrain = new THREE.Mesh(terrainGeo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+        const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+        const terrain = new THREE.Mesh(terrainGeo, terrainMat);
         terrain.receiveShadow = true;
         scene.add(terrain);
 
+        function updateTerrainColors() {
+            const pos = terrainGeo.attributes.position;
+            const colors = [];
+            const colorObj = new THREE.Color();
+            for (let i = 0; i < pos.count; i++) {
+                const y = getTerrainHeight(pos.getX(i), pos.getZ(i));
+                pos.setY(i, y); 
+                if (y < WATER_LEVEL + 4) colorObj.setHex(0xe8d69e);
+                else if (y < 60) colorObj.setHex(0x557a2b);
+                else if (y < 160) colorObj.setHex(0x2d4c1e);
+                else if (y < 220) colorObj.setHex(0x6e7b6d);
+                else colorObj.setHex(0xffffff);
+                colors.push(colorObj.r, colorObj.g, colorObj.b);
+            }
+            terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            terrainGeo.computeVertexNormals();
+        }
+        updateTerrainColors();
+
         const waterGeo = new THREE.PlaneGeometry(24000, 24000, 100, 100);
         waterGeo.rotateX(-Math.PI / 2);
-        const water = new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x1e90ff, transparent: true, opacity: 0.7, metalness: 0.1, roughness: 0.2 }));
+        const waterMat = new THREE.MeshStandardMaterial({ color: 0x1e90ff, transparent: true, opacity: 0.7, metalness: 0.1, roughness: 0.2 });
+        const water = new THREE.Mesh(waterGeo, waterMat);
         water.position.y = WATER_LEVEL; water.receiveShadow = true;
         scene.add(water);
 
@@ -467,32 +555,17 @@
         const stringLines = new THREE.LineSegments(stringsGeo, new THREE.LineBasicMaterial({ color: 0x4169E1, transparent: true, opacity: 0.8 }));
         playerGroup.add(stringLines);
         
-        // This function now uses the canopy's world matrix to ensure PERFECT attachment
         function updateStrings() {
-            if (canopyMesh.scale.x < 0.001) { 
-                stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3)); 
-                return; 
-            }
-
+            if (canopyMesh.scale.x < 0.001) { stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute([], 3)); return; }
             const curHeartScale = heartMesh.scale.x; 
-            // Attachment points relative to heart
             const attachL = new THREE.Vector3(-0.4 * (curHeartScale/1.5), heartMesh.position.y + 0.8 * (curHeartScale/1.5), 0.1); 
             const attachR = new THREE.Vector3(0.4 * (curHeartScale/1.5), heartMesh.position.y + 0.8 * (curHeartScale/1.5), 0.1);
-            
-            const pts = []; 
-            const anchors = canopyMesh.userData.anchorPoints || [];
-            
-            // We must update the canopy matrix manually if we haven't rendered yet
+            const pts = []; const anchors = canopyMesh.userData.anchorPoints || [];
             canopyMesh.updateMatrix();
             const canopyWorldMatrix = canopyMesh.matrix;
-
             for(let i = 0; i < anchors.length; i++) {
-                // Transform the anchor point from the canopy's local geometry space to playerGroup space
                 const rimPos = anchors[i].clone().applyMatrix4(canopyWorldMatrix);
-                
-                // Determine which heart attach point to use
                 const anchor = (anchors[i].x < -0.01) ? attachL : ((anchors[i].x > 0.01) ? attachR : ((i % 2 === 0) ? attachL : attachR));
-                
                 pts.push(anchor.x, anchor.y, anchor.z, rimPos.x, rimPos.y, rimPos.z);
             }
             stringsGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
@@ -514,17 +587,8 @@
                 const ease = 1 - Math.pow(1 - Math.min(state.deployProgress, 1.0), 3);
                 cd = THREE.MathUtils.lerp(CONFIG.freefall.Cd, CONFIG.parachute.Cd, ease);
                 area = THREE.MathUtils.lerp(CONFIG.freefall.A, CONFIG.parachute.A, ease);
-                canopyMesh.scale.setScalar(ease); 
-                canopyMesh.visible = true; 
-                stringLines.visible = true; 
-            } else if (state.phase === 'DEPLOYED') { 
-                cd = CONFIG.parachute.Cd; 
-                area = CONFIG.parachute.A; 
-                canopyMesh.scale.setScalar(1.0); 
-            } else { 
-                canopyMesh.visible = false; 
-                stringLines.visible = false; 
-            }
+                canopyMesh.scale.setScalar(ease); canopyMesh.visible = true; stringLines.visible = true; 
+            } else if (state.phase === 'DEPLOYED') { cd = CONFIG.parachute.Cd; area = CONFIG.parachute.A; canopyMesh.scale.setScalar(1.0); } else { canopyMesh.visible = false; stringLines.visible = false; }
             const forces = new THREE.Vector3(0, -state.mass * CONFIG.gravity, 0);
             forces.add(calculateDrag(state.velocity, state.wind, cd, area));
             if (state.keys.up) forces.z -= CONFIG.steerForce; if (state.keys.down) forces.z += CONFIG.steerForce;
@@ -532,17 +596,8 @@
             state.velocity.addScaledVector(forces.divideScalar(state.mass), dt); state.position.addScaledVector(state.velocity, dt);
             if (state.phase === 'FREEFALL' && state.position.y <= state.deployAltitude) { state.phase = 'DEPLOYING'; updateHUDState(); }
             const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
-            
             const bottomOffset = Math.abs(heartMesh.position.y);
-            
-            if (state.position.y <= groundY + bottomOffset) { 
-                state.position.y = groundY + bottomOffset; 
-                state.velocity.set(0, 0, 0); 
-                state.phase = 'LANDED'; 
-                updateHUDState(); 
-                canopyMesh.visible = false; 
-                stringLines.visible = false; 
-            }
+            if (state.position.y <= groundY + bottomOffset) { state.position.y = groundY + bottomOffset; state.velocity.set(0, 0, 0); state.phase = 'LANDED'; updateHUDState(); canopyMesh.visible = false; stringLines.visible = false; }
         }
 
         function togglePanel(panelId, side) {
@@ -551,11 +606,68 @@
             panel.classList.toggle(className);
         }
 
+        function setWeather(mode) {
+            state.weather = mode;
+            document.querySelectorAll('.meteo-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-weather-' + mode).classList.add('active');
+
+            if (mode === 'normal') {
+                scene.background.setHex(0x87CEEB);
+                scene.fog.color.setHex(0x87CEEB);
+                scene.fog.density = 0.0004;
+                ambientLight.intensity = 0.75;
+                dirLight.intensity = 0.85;
+                dirLight.position.set(200, 800, 100);
+                waterMat.color.setHex(0x1e90ff);
+                snowSystem.visible = false;
+                starSystem.visible = false;
+                moonLight.intensity = 0;
+            } else if (mode === 'night') {
+                scene.background.setHex(0x050812);
+                scene.fog.color.setHex(0x050812);
+                scene.fog.density = 0.0007;
+                ambientLight.intensity = 0.15;
+                dirLight.intensity = 0.1;
+                dirLight.position.set(-800, 1000, -200);
+                waterMat.color.setHex(0x020210);
+                snowSystem.visible = false;
+                starSystem.visible = true;
+                moonLight.intensity = 1.5; // Added lighting source from top
+            } else if (mode === 'blizzard') {
+                scene.background.setHex(0xc0cedb);
+                scene.fog.color.setHex(0xc0cedb);
+                scene.fog.density = 0.003; // decrease this to Increase visibility of the landing surface
+                ambientLight.intensity = 0.7;
+                dirLight.intensity = 0.1;
+                waterMat.color.setHex(0x99aabb);
+                snowSystem.visible = true;
+                starSystem.visible = false;
+                moonLight.intensity = 1.5; // ADDED: Lighting source from top
+            }
+        }
+
         let lastTime = performance.now();
         function animate() {
             requestAnimationFrame(animate); const timeNow = performance.now();
             let rawDt = Math.min((timeNow - lastTime) / 1000, 0.1) * state.timeScale; lastTime = timeNow;
             let remainingDt = rawDt; while (remainingDt > 0) { let step = Math.min(remainingDt, 0.016); physicsStep(step); remainingDt -= step; }
+
+            if (state.weather === 'blizzard') {
+                const posArr = snowGeo.attributes.position.array;
+                const area = 120;
+                const fallSpeed = 5 * rawDt; // REFINED: Decreased falling speed by 2x
+                for(let i=0; i<snowPtsCount; i++) {
+                    posArr[i*3+1] -= fallSpeed; 
+                    if (posArr[i*3+1] < -area/2) posArr[i*3+1] = area/2;
+                }
+                snowGeo.attributes.position.needsUpdate = true;
+                snowSystem.position.copy(camera.position); 
+            }
+            
+            // Top-down lighting logic
+            if (state.weather !== 'normal') {
+                moonLight.position.set(state.position.x, state.position.y + 25, state.position.z);
+            }
 
             if (state.autoWindActive) {
                 state.wind.x += state.autoWindDir * 10 * rawDt; if (Math.abs(state.wind.x) >= 20) state.autoWindDir *= -1;
@@ -574,11 +686,9 @@
             }
 
             state.camShakeSmooth = THREE.MathUtils.lerp(state.camShakeSmooth, state.camShakeIntensity, 0.1);
-
             const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
             const bottomOffset = Math.abs(heartMesh.position.y);
             const trueAltitude = Math.max(0, (state.position.y - bottomOffset) - groundY);
-            
             let heightFade = trueAltitude < CONFIG.turbulenceHeightLimit ? trueAltitude / CONFIG.turbulenceHeightLimit : 1.0;
             if (state.phase === 'LANDED') heightFade = 0;
 
@@ -587,13 +697,10 @@
                 const freqBase = 0.8 + (intensityNorm * 0.9);
                 state.turbulencePhase += rawDt * freqBase;
                 const baseRadius = 0.4 + intensityNorm * 1.5;
-                const aggroBoost = Math.pow(intensityNorm, 4) * 2.5;
-                const totalRadius = Math.min(4.5, (baseRadius + aggroBoost)) * heightFade;
-
+                const totalRadius = Math.min(4.5, (baseRadius + Math.pow(intensityNorm, 4) * 2.5)) * heightFade;
                 state.objTurbulenceOffset.x = Math.sin(state.turbulencePhase) * totalRadius;
                 state.objTurbulenceOffset.y = Math.cos(state.turbulencePhase * 0.7) * (totalRadius * 0.25);
                 state.objTurbulenceOffset.z = Math.cos(state.turbulencePhase * 1.1) * totalRadius;
-
                 const tiltWeight = Math.pow(intensityNorm, 2) * 0.2;
                 state.objTurbulenceRot.x = Math.sin(state.turbulencePhase) * tiltWeight;
                 state.objTurbulenceRot.z = Math.cos(state.turbulencePhase * 0.9) * tiltWeight;
@@ -603,30 +710,18 @@
             }
 
             const threshold = 9.2;
-            const targetSaltoAlpha = (state.camShakeSmooth >= threshold) ? 
-                Math.min(1.0, (state.camShakeSmooth - threshold) / (10.0 - threshold)) : 0;
+            const targetSaltoAlpha = (state.camShakeSmooth >= threshold) ? Math.min(1.0, (state.camShakeSmooth - threshold) / (10.0 - threshold)) : 0;
             state.currentSaltoAlpha = THREE.MathUtils.lerp(state.currentSaltoAlpha, targetSaltoAlpha, 0.02);
-
             if (state.currentSaltoAlpha > 0.001 && state.phase !== 'LANDED') {
                 state.saltoPhase += rawDt * (state.velocity.length() * 0.15) * state.currentSaltoAlpha;
                 playerGroup.rotation.x = Math.sin(state.saltoPhase) * Math.PI * 2 * state.currentSaltoAlpha;
-            } else {
-                playerGroup.rotation.x = THREE.MathUtils.lerp(playerGroup.rotation.x, 0, 0.05);
-            }
+            } else { playerGroup.rotation.x = THREE.MathUtils.lerp(playerGroup.rotation.x, 0, 0.05); }
 
             playerGroup.position.copy(state.position).add(state.objTurbulenceOffset);
-            heartMesh.rotation.set(0, 0, Math.PI);
-            heartMesh.rotation.x = Math.PI + (state.velocity.z * 0.02) + state.objTurbulenceRot.x; 
-            heartMesh.rotation.y = (state.velocity.x * 0.02);
-            heartMesh.rotation.z = Math.PI + state.objTurbulenceRot.z;
-            
+            heartMesh.rotation.set(Math.PI + (state.velocity.z * 0.02) + state.objTurbulenceRot.x, (state.velocity.x * 0.02), Math.PI + state.objTurbulenceRot.z);
             if(state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
-                canopyMesh.rotation.set(0, 0, 0);
-                canopyMesh.rotation.x = state.velocity.z * 0.015 + state.objTurbulenceRot.x * 0.5; 
-                canopyMesh.rotation.z = -state.velocity.x * 0.015 + state.objTurbulenceRot.z * 0.5;
+                canopyMesh.rotation.set(state.velocity.z * 0.015 + state.objTurbulenceRot.x * 0.5, 0, -state.velocity.x * 0.015 + state.objTurbulenceRot.z * 0.5);
             }
-            
-            // ALWAYS update strings to ensure they follow canopy rotation/tilt/scale exactly
             updateStrings();
 
             if (state.camRotationActive) state.camTheta += rawDt * state.camRotationSpeed;
@@ -643,18 +738,13 @@
         }
 
         function updateHUDState() { const el = document.getElementById('hud-state'); el.innerText = state.phase; el.className = 'stat-value status-' + state.phase; }
-        
         function resetSimulation() {
             state.phase = 'FREEFALL'; state.position.set(0, CONFIG.startAltitude, 0); state.velocity.set(0, 0, 0); state.deployProgress = 0;
             state.saltoPhase = 0; state.currentSaltoAlpha = 0; playerGroup.rotation.x = 0;
-            state.turbulencePhase = 0;
             canopyMesh.scale.setScalar(0.0001); canopyMesh.visible = false; stringLines.visible = false;
             updateHeartScale(); updateHUDState();
         }
-
-        function updateHeartScale() {
-            const finalScale = 1.5 * Math.pow(state.mass / CONFIG.baseMass, 0.33); heartMesh.scale.setScalar(finalScale); heartMesh.position.y = -1.8 * finalScale; 
-        }
+        function updateHeartScale() { const finalScale = 1.5 * Math.pow(state.mass / CONFIG.baseMass, 0.33); heartMesh.scale.setScalar(finalScale); heartMesh.position.y = -1.8 * finalScale; }
 
         function handleDragStart(x, y, target) { if (target.closest('.panel')) return; state.isDragging = true; state.lastMousePos = { x, y }; }
         function handleDragMove(x, y) { if (!state.isDragging) return; state.camTheta -= (x - state.lastMousePos.x) * 0.01;
@@ -676,34 +766,20 @@
         document.getElementById('cam-auto-rotate').onchange = (e) => state.camRotationActive = e.target.checked;
         document.getElementById('param-rot-speed').oninput = (e) => { state.camRotationSpeed = +e.target.value; document.getElementById('val-rot-speed').innerText = state.camRotationSpeed.toFixed(2); };
         document.getElementById('cam-turbulence').onchange = (e) => state.camTurbulenceActive = e.target.checked;
-        
         document.getElementById('param-shake').oninput = (e) => { 
             state.camShakeIntensity = +e.target.value; 
             const valDisplay = document.getElementById('val-shake');
             const lblTurbulence = document.getElementById('lbl-turbulence');
             valDisplay.innerText = state.camShakeIntensity.toFixed(1); 
-            if (state.camShakeIntensity >= 9.2) {
-                valDisplay.classList.add('warning');
-                lblTurbulence.innerHTML = "🌀 Hard Landing!";
-                lblTurbulence.classList.add('heavy');
-            } else {
-                valDisplay.classList.remove('warning');
-                lblTurbulence.innerText = "Turbulence";
-                lblTurbulence.classList.remove('heavy');
-            }
+            if (state.camShakeIntensity >= 9.2) { valDisplay.classList.add('warning'); lblTurbulence.innerHTML = "🌀 Hard Landing!"; lblTurbulence.classList.add('heavy'); } 
+            else { valDisplay.classList.remove('warning'); lblTurbulence.innerText = "Turbulence"; lblTurbulence.classList.remove('heavy'); }
         };
-
         document.getElementById('btn-reset-cam').onclick = () => { state.camPhi = Math.PI/3; state.camTheta = 0; state.camDistance = 25; };
         document.getElementById('btn-restart').onclick = resetSimulation;
         document.getElementById('param-shifter').onchange = (e) => { state.shapeShifterActive = e.target.checked; if (state.shapeShifterActive) state.lastShapeChange = performance.now(); };
         document.getElementById('param-palette-auto').onchange = (e) => { state.paletteAutoActive = e.target.checked; if (state.paletteAutoActive) state.lastPaletteChange = performance.now(); };
-        document.getElementById('param-shape').oninput = (e) => {
-            const idx = parseInt(e.target.value); state.currentShapeIndex = idx; document.getElementById('val-shape').innerText = SHAPE_NAMES[idx];
-            updateCanopyShape(idx); 
-        };
-        document.getElementById('param-palette').onchange = (e) => {
-            const v = e.target.value; canopyMat.map = generateStripedTexture(v); updatePalettePreview(v); state.currentPaletteIndex = Object.keys(PALETTES).indexOf(v);
-        };
+        document.getElementById('param-shape').oninput = (e) => { const idx = parseInt(e.target.value); state.currentShapeIndex = idx; document.getElementById('val-shape').innerText = SHAPE_NAMES[idx]; updateCanopyShape(idx); };
+        document.getElementById('param-palette').onchange = (e) => { const v = e.target.value; canopyMat.map = generateStripedTexture(v); updatePalettePreview(v); state.currentPaletteIndex = Object.keys(PALETTES).indexOf(v); };
 
         function updatePalettePreview(p) {
             const el = document.getElementById('palette-preview'); el.innerHTML = '';
@@ -713,7 +789,6 @@
         window.onkeydown = (e) => { if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=true; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=true; if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=true; };
         window.onkeyup = (e) => { if(e.code==='ArrowUp'||e.code==='KeyW') state.keys.up=false; if(e.code==='ArrowDown'||e.code==='KeyS') state.keys.down=false; if(e.code==='ArrowLeft'||e.code==='KeyA') state.keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') state.keys.right=false; };
         window.onresize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
-        
         window.onload = () => { updateHeartScale(); updatePalettePreview('paired12'); animate(); };
     </script>
 </body>
