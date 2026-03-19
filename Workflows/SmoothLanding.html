@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - v1.44</title>
+    <title>3D Parachute Simulation - v1.44b</title>
     <style>
         body {
             margin: 0;
@@ -621,7 +621,7 @@
                 scene.background.setHex(0x050812);
                 scene.fog.color.setHex(0x050812);
                 scene.fog.density = 0.0007;
-                ambientLight.intensity = 0.15;
+                ambientLight.intensity = 0.3; // raised from 0.15
                 dirLight.intensity = 0.1;
                 dirLight.position.set(-800, 1000, -200);
                 waterMat.color.setHex(0x020210);
@@ -633,7 +633,7 @@
                 scene.fog.color.setHex(0xc0cedb);
                 scene.fog.density = 0.003; // decrease this to Increase visibility of the landing surface
                 ambientLight.intensity = 0.7;
-                dirLight.intensity = 0.1;
+                dirLight.intensity = 0.2;
                 waterMat.color.setHex(0x99aabb);
                 snowSystem.visible = true;
                 starSystem.visible = false;
