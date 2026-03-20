@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parachute Simulation - v1.44c</title>
+    <title>3D Parachute Simulation - v1.51</title>
     <style>
         body {
             margin: 0;
@@ -96,7 +96,7 @@
             padding: 6px;
             background: rgba(10, 25, 60, 0.85);
             color: white;
-            border: 1px solid rgba(65, 105, 225, 0.5);
+            border: solid 1px rgba(65, 105, 225, 0.5);
             border-radius: 4px;
             font-family: inherit;
             outline: none;
@@ -307,7 +307,7 @@
             startAltitude: 1000,
             freefall: { Cd: 0.4, A: 0.7 },
             parachute: { Cd: 1.5, A: 44.0 }, 
-            deployDuration: 4.0, // all canopy shapes in the worfklow has the deploy time ~ 2-5 sec.
+            deployDuration: 4.0, 
             steerForce: 150,
             baseMass: 80,
             turbulenceHeightLimit: 60 
@@ -399,13 +399,12 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // This light will follow the parachute and provide top-down lighting in dark/snowy modes
         const moonLight = new THREE.PointLight(0x88aaff, 0, 150);
         moonLight.castShadow = false;
         scene.add(moonLight);
 
         const starGeo = new THREE.BufferGeometry();
-        const starPtsCount = 30000; // Refined count
+        const starPtsCount = 30000; 
         const starPts = new Float32Array(starPtsCount * 3);
         const starColors = new Float32Array(starPtsCount * 3);
         for(let i=0; i<starPtsCount; i++) {
@@ -426,15 +425,13 @@
         scene.add(starSystem);
 
         const snowGeo = new THREE.BufferGeometry();
-        const snowPtsCount = 60000; // REFINED: Increased Resolution
+        const snowPtsCount = 60000; 
         const snowPositions = new Float32Array(snowPtsCount * 3);
-        const snowVols = new Float32Array(snowPtsCount);
         const snowArea = 120;
         for(let i=0; i<snowPtsCount; i++) {
             snowPositions[i*3] = THREE.MathUtils.randFloatSpread(snowArea);
             snowPositions[i*3+1] = THREE.MathUtils.randFloatSpread(snowArea);
             snowPositions[i*3+2] = THREE.MathUtils.randFloatSpread(snowArea);
-            snowVols[i] = 0.4 + Math.random() * 0.6;
         }
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
         const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, transparent: true, opacity: 0.7, sizeAttenuation: true });
@@ -478,14 +475,53 @@
         const playerGroup = new THREE.Group();
         scene.add(playerGroup);
 
-        const heartShape = new THREE.Shape();
-        heartShape.moveTo(0, 0); heartShape.bezierCurveTo(0, 0.3, -0.6, 0.6, -0.6, 1.2);
-        heartShape.bezierCurveTo(-0.6, 1.8, 0, 1.8, 0, 1.2); heartShape.bezierCurveTo(0, 1.8, 0.6, 1.8, 0.6, 1.2);
-        heartShape.bezierCurveTo(0.6, 0.6, 0, 0.3, 0, 0);
-        const heartGeo = new THREE.ExtrudeGeometry(heartShape, { depth: 0.4, bevelEnabled: true, bevelSegments: 3, steps: 2, bevelSize: 0.15, bevelThickness: 0.15 });
-        const heartMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.4, metalness: 0.3 });
+        function createChampagneBoxTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // Premium wood base
+            ctx.fillStyle = '#7F4E2D'; ctx.fillRect(0, 0, 512, 512);
+            
+            // Detailed grain
+            for (let i = 0; i < 800; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const width = 1 + Math.random() * 2;
+                const height = 10 + Math.random() * 20; // short vertical streaks
+                ctx.fillStyle = `rgba(50, 30, 15, ${Math.random() * 0.15})`;
+                ctx.fillRect(x, y, width, height);
+            }
+            
+            // Gold border
+            ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 15;
+            ctx.strokeRect(30, 30, 452, 452);
+            
+            // Royal Crown Emoji
+            ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.font = '100px serif';
+            ctx.fillText('👑', 256, 180);
+            
+            // Premium Text
+            ctx.fillStyle = '#d4af37'; // Gold text
+            ctx.font = 'bold 34px "Didot", serif';
+            ctx.fillText('Brut Royal', 256, 290);
+            
+            ctx.font = 'italic 28px "Bodoni", serif';
+            ctx.fillText('Grande Réserve', 256, 340);
+            
+            // Subtle "Vintage" stamp look
+            ctx.globalAlpha = 0.5;
+            ctx.font = 'bold 20px serif';
+            ctx.fillText('EST. 1829', 256, 420);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = 16;
+            return texture;
+        }
+        
+        const heartGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+        const heartMat = new THREE.MeshStandardMaterial({ map: createChampagneBoxTexture(), roughness: 0.4, metalness: 0.3 });
         const heartMesh = new THREE.Mesh(heartGeo, heartMat);
-        heartMesh.rotation.z = Math.PI; heartMesh.position.z = 0.2; heartMesh.castShadow = true;
+        heartMesh.castShadow = true;
         playerGroup.add(heartMesh);
 
         const CANOPY_ATTACH_HEIGHT = 5.0;
@@ -590,9 +626,34 @@
             if (state.keys.left) forces.x -= CONFIG.steerForce; if (state.keys.right) forces.x += CONFIG.steerForce;
             state.velocity.addScaledVector(forces.divideScalar(state.mass), dt); state.position.addScaledVector(state.velocity, dt);
             if (state.phase === 'FREEFALL' && state.position.y <= state.deployAltitude) { state.phase = 'DEPLOYING'; updateHUDState(); }
-            const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
-            const bottomOffset = Math.abs(heartMesh.position.y);
-            if (state.position.y <= groundY + bottomOffset) { state.position.y = groundY + bottomOffset; state.velocity.set(0, 0, 0); state.phase = 'LANDED'; updateHUDState(); canopyMesh.visible = false; stringLines.visible = false; }
+            
+            const terrainY = getTerrainHeight(state.position.x, state.position.z);
+            const groundY = Math.max(terrainY, WATER_LEVEL);
+            
+            // Check landing
+            const halfBoxHeight = (0.75 * heartMesh.scale.y); 
+            // If terrain is higher than water, land on surface (perfectly on ground)
+            // If we land in water, we want it to look "embedded" (center of box at water level)
+            if (terrainY >= WATER_LEVEL) {
+                 if (state.position.y <= terrainY + halfBoxHeight) {
+                    state.position.y = terrainY + halfBoxHeight; 
+                    state.velocity.set(0, 0, 0); 
+                    state.phase = 'LANDED'; 
+                    updateHUDState(); 
+                    canopyMesh.visible = false; 
+                    stringLines.visible = false; 
+                 }
+            } else {
+                 // Landing in water
+                 if (state.position.y <= WATER_LEVEL) {
+                    state.position.y = WATER_LEVEL; // Embedded to midline
+                    state.velocity.set(0, 0, 0); 
+                    state.phase = 'LANDED'; 
+                    updateHUDState(); 
+                    canopyMesh.visible = false; 
+                    stringLines.visible = false; 
+                 }
+            }
         }
 
         function togglePanel(panelId, side) {
@@ -618,26 +679,26 @@
                 starSystem.visible = false;
                 moonLight.intensity = 0;
             } else if (mode === 'night') {
-                scene.background.setHex(0x050812);
-                scene.fog.color.setHex(0x050812);
+                scene.background.setHex(0x0B183C);
+                scene.fog.color.setHex(0x0B183C);
                 scene.fog.density = 0.0007;
-                ambientLight.intensity = 0.3; // raised from 0.15
+                ambientLight.intensity = 0.5;
                 dirLight.intensity = 0.1;
                 dirLight.position.set(-800, 1000, -200);
-                waterMat.color.setHex(0x020210);
+                waterMat.color.setHex(0x0A1A3D);
                 snowSystem.visible = false;
                 starSystem.visible = true;
-                moonLight.intensity = 1.5; // Added lighting source from top
+                moonLight.intensity = 1.5;
             } else if (mode === 'blizzard') {
                 scene.background.setHex(0xc0cedb);
                 scene.fog.color.setHex(0xc0cedb);
-                scene.fog.density = 0.003; // decrease this to Increase visibility of the landing surface
+                scene.fog.density = 0.003;
                 ambientLight.intensity = 0.7;
                 dirLight.intensity = 0.2;
                 waterMat.color.setHex(0x99aabb);
                 snowSystem.visible = true;
                 starSystem.visible = false;
-                moonLight.intensity = 1.5; // ADDED: Lighting source from top
+                moonLight.intensity = 1.5;
             }
         }
 
@@ -650,7 +711,7 @@
             if (state.weather === 'blizzard') {
                 const posArr = snowGeo.attributes.position.array;
                 const area = 120;
-                const fallSpeed = 5 * rawDt; // REFINED: Decreased falling speed by 2x
+                const fallSpeed = 5 * rawDt; 
                 for(let i=0; i<snowPtsCount; i++) {
                     posArr[i*3+1] -= fallSpeed; 
                     if (posArr[i*3+1] < -area/2) posArr[i*3+1] = area/2;
@@ -659,7 +720,6 @@
                 snowSystem.position.copy(camera.position); 
             }
             
-            // Top-down lighting logic
             if (state.weather !== 'normal') {
                 moonLight.position.set(state.position.x, state.position.y + 25, state.position.z);
             }
@@ -681,9 +741,10 @@
             }
 
             state.camShakeSmooth = THREE.MathUtils.lerp(state.camShakeSmooth, state.camShakeIntensity, 0.1);
-            const groundY = Math.max(getTerrainHeight(state.position.x, state.position.z), WATER_LEVEL);
-            const bottomOffset = Math.abs(heartMesh.position.y);
-            const trueAltitude = Math.max(0, (state.position.y - bottomOffset) - groundY);
+            const terrainY = getTerrainHeight(state.position.x, state.position.z);
+            const groundY = Math.max(terrainY, WATER_LEVEL);
+            const halfBoxHeight = (0.75 * heartMesh.scale.y);
+            const trueAltitude = Math.max(0, (state.position.y - halfBoxHeight) - groundY);
             let heightFade = trueAltitude < CONFIG.turbulenceHeightLimit ? trueAltitude / CONFIG.turbulenceHeightLimit : 1.0;
             if (state.phase === 'LANDED') heightFade = 0;
 
@@ -713,7 +774,13 @@
             } else { playerGroup.rotation.x = THREE.MathUtils.lerp(playerGroup.rotation.x, 0, 0.05); }
 
             playerGroup.position.copy(state.position).add(state.objTurbulenceOffset);
-            heartMesh.rotation.set(Math.PI + (state.velocity.z * 0.02) + state.objTurbulenceRot.x, (state.velocity.x * 0.02), Math.PI + state.objTurbulenceRot.z);
+            
+            if (state.phase === 'LANDED') {
+                heartMesh.rotation.set(0, state.rotation || 0, 0); 
+            } else {
+                heartMesh.rotation.set(Math.PI + (state.velocity.z * 0.02) + state.objTurbulenceRot.x, (state.velocity.x * 0.02), Math.PI + state.objTurbulenceRot.z);
+            }
+            
             if(state.phase === 'DEPLOYED' || state.phase === 'DEPLOYING') {
                 canopyMesh.rotation.set(state.velocity.z * 0.015 + state.objTurbulenceRot.x * 0.5, 0, -state.velocity.x * 0.015 + state.objTurbulenceRot.z * 0.5);
             }
@@ -739,7 +806,11 @@
             canopyMesh.scale.setScalar(0.0001); canopyMesh.visible = false; stringLines.visible = false;
             updateHeartScale(); updateHUDState();
         }
-        function updateHeartScale() { const finalScale = 1.5 * Math.pow(state.mass / CONFIG.baseMass, 0.33); heartMesh.scale.setScalar(finalScale); heartMesh.position.y = -1.8 * finalScale; }
+        function updateHeartScale() { 
+            const finalScale = 1.5 * Math.pow(state.mass / CONFIG.baseMass, 0.33); 
+            heartMesh.scale.setScalar(finalScale); 
+            heartMesh.position.y = 0; 
+        }
 
         function handleDragStart(x, y, target) { if (target.closest('.panel')) return; state.isDragging = true; state.lastMousePos = { x, y }; }
         function handleDragMove(x, y) { if (!state.isDragging) return; state.camTheta -= (x - state.lastMousePos.x) * 0.01;
