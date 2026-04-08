@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D - Deep Dolphin Dynamics - rev 1.0</title>
+    <style>
+        :root {
+            --royal-base: #020b1a;
+            --royal-mid: #061836;
+            --royal-light: #102d5e;
+            --royal-accent: #2563eb;
+            --royal-highlight: #60a5fa;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--royal-base);
+            color: var(--text-main);
+        }
+
+        #webgl-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        #ui-panel-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            align-items: flex-start;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #ui-panel-container.collapsed {
+            transform: translateX(320px);
+        }
+
+        #toggle-btn {
+            background: rgba(6, 24, 54, 0.75);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(37, 99, 235, 0.4);
+            color: var(--royal-highlight);
+            width: 40px;
+            height: 40px;
+            border-radius: 8px 0 0 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: -1px;
+            box-shadow: -4px 0 15px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        #toggle-btn:hover {
+            background: rgba(16, 45, 94, 0.9);
+            color: #fff;
+        }
+
+        #toggle-btn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            transition: transform 0.4s ease;
+        }
+
+        .collapsed #toggle-btn svg {
+            transform: scaleX(-1);
+        }
+
+        .panel {
+            width: 300px;
+            background: rgba(2, 11, 26, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(37, 99, 235, 0.3);
+            border-radius: 0 12px 12px 12px;
+            padding: 24px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .panel::-webkit-scrollbar { width: 6px; }
+        .panel::-webkit-scrollbar-thumb { background: var(--royal-light); border-radius: 3px; }
+
+        h2 {
+            margin: 0 0 20px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(37, 99, 235, 0.4);
+            padding-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            color: var(--royal-highlight);
+            margin: 15px 0 10px 0;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group { margin-bottom: 16px; }
+        .control-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 0.9rem; }
+        .value-display { font-family: monospace; color: var(--royal-highlight); }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: var(--royal-mid);
+            border-radius: 3px;
+            outline: none;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--royal-accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(37, 99, 235, 0.6);
+            transition: transform 0.1s;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--royal-mid); transition: .4s; border-radius: 20px;
+            border: 1px solid rgba(37, 99, 235, 0.4);
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px; left: 2px; bottom: 2px;
+            background-color: var(--text-dim); transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--royal-accent); }
+        input:checked + .slider:before { transform: translateX(20px); background-color: #fff; }
+
+        #telemetry {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 10;
+            background: rgba(2, 11, 26, 0.7);
+            backdrop-filter: blur(6px);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 3px solid var(--royal-accent);
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: var(--text-main);
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .telemetry-row { margin: 5px 0; }
+        .telemetry-value { color: var(--royal-highlight); font-weight: bold; }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--royal-highlight);
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            z-index: 20;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="loading">Adjusting Anatomy...</div>
+    <div id="webgl-container"></div>
+
+    <div id="telemetry">
+        <div class="telemetry-row">Velocity: <span id="tel-vel" class="telemetry-value">0.0</span> m/s</div>
+        <div class="telemetry-row">Thrust: <span id="tel-thrust" class="telemetry-value">0.0</span> N</div>
+        <div class="telemetry-row">Drag: <span id="tel-drag" class="telemetry-value">0.0</span> N</div>
+    </div>
+
+    <div id="ui-panel-container">
+        <div id="toggle-btn" title="Toggle Controls">
+            <svg viewBox="0 0 24 24">
+                <path d="M9 18l6-6-6-6"/>
+            </svg>
+        </div>
+        <div class="panel">
+            <h2>© The Visual Hub</h2>
+
+            <div class="section-title">Dolphin Motion</div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Tail Frequency (Hz)</span>
+                    <span class="value-display" id="val-freq">2.5</span>
+                </div>
+                <input type="range" id="param-freq" min="0" max="6" step="0.1" value="2.5">
+            </div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Tail Amplitude</span>
+                    <span class="value-display" id="val-amp">0.6</span>
+                </div>
+                <input type="range" id="param-amp" min="0" max="1.5" step="0.05" value="0.6">
+            </div>
+
+            <div class="section-title">Water & Physics</div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Drag Coefficient (Cd)</span>
+                    <span class="value-display" id="val-drag">0.15</span>
+                </div>
+                <input type="range" id="param-drag" min="0.01" max="0.5" step="0.01" value="0.15">
+            </div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Buoyancy Depth</span>
+                    <span class="value-display" id="val-buoyancy">0.0</span>
+                </div>
+                <input type="range" id="param-buoyancy" min="-5" max="5" step="0.5" value="0.0">
+            </div>
+
+            <div class="section-title">Camera System</div>
+            <div class="toggle-container">
+                <span>Auto-Rotation</span>
+                <label class="switch">
+                    <input type="checkbox" id="param-autorotate" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Rotation Speed</span>
+                    <span class="value-display" id="val-rotspeed">0.8</span>
+                </div>
+                <input type="range" id="param-rotspeed" min="0" max="9.0" step="0.1" value="0.8">
+            </div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Zoom Speed (Sensitivity)</span>
+                    <span class="value-display" id="val-zoomspeed">1.0</span>
+                </div>
+                <input type="range" id="param-zoomspeed" min="0.1" max="5.0" step="0.1" value="1.0">
+            </div>
+            <div class="control-group">
+                <div class="control-header">
+                    <span>Auto-Zoom Distance</span>
+                    <span class="value-display" id="val-zoomdist">27.0</span>
+                </div>
+                <input type="range" id="param-zoomdist" min="5.0" max="50.0" step="1.0" value="27.0">
+            </div>
+            <div class="toggle-container">
+                <span>Auto-Zoom Cycle</span>
+                <label class="switch">
+                    <input type="checkbox" id="param-autozoom">
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        const config = {
+            colors: {
+                bgBase: 0x01132b,
+                fog: 0x021c42,
+                waterSurface: 0x07417d,
+                lightMain: 0xffffff,
+                bubbles: 0xdce9ff,
+                sand: 0x1a2e4d
+            },
+            physics: {
+                velocity: 0,
+                thrust: 0,
+                dragForce: 0,
+                maxVelocity: 30,
+                thrustMultiplier: 0.85, 
+                dragMultiplier: 0.12, 
+                scrollOffset: 0
+            }
+        };
+
+        const params = {
+            frequency: 2.5,
+            amplitude: 0.6,
+            dragCoeff: 0.15,
+            buoyancy: 0.0,
+            autoRotate: true,
+            rotSpeed: 0.8,
+            zoomSpeed: 1.0,
+            zoomDistance: 27.0,
+            autoZoom: false
+        };
+
+        function bindUI(id, paramKey, displayId) {
+            const el = document.getElementById(id);
+            const display = document.getElementById(displayId);
+            el.addEventListener('input', (e) => {
+                let val = parseFloat(e.target.value);
+                params[paramKey] = val;
+                if(display) display.textContent = val.toFixed(1);
+            });
+        }
+        
+        bindUI('param-freq', 'frequency', 'val-freq');
+        bindUI('param-amp', 'amplitude', 'val-amp');
+        bindUI('param-drag', 'dragCoeff', 'val-drag');
+        bindUI('param-buoyancy', 'buoyancy', 'val-buoyancy');
+        bindUI('param-rotspeed', 'rotSpeed', 'val-rotspeed');
+        bindUI('param-zoomspeed', 'zoomSpeed', 'val-zoomspeed');
+        bindUI('param-zoomdist', 'zoomDistance', 'val-zoomdist');
+
+        document.getElementById('param-autorotate').addEventListener('change', (e) => {
+            params.autoRotate = e.target.checked;
+        });
+        
+        document.getElementById('param-autozoom').addEventListener('change', (e) => {
+            params.autoZoom = e.target.checked;
+        });
+
+        const panelContainer = document.getElementById('ui-panel-container');
+        document.getElementById('toggle-btn').addEventListener('click', () => {
+            panelContainer.classList.toggle('collapsed');
+        });
+
+        const container = document.getElementById('webgl-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(config.colors.bgBase);
+        scene.fog = new THREE.FogExp2(config.colors.fog, 0.045);
+
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 500);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true; 
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 5;
+        controls.maxDistance = 60;
+        controls.enableZoom = true;
+
+        const mainLight = new THREE.PointLight(config.colors.lightMain, 4.5, 150);
+        mainLight.position.set(0, 30, 0);
+        mainLight.decay = 2.0; 
+        mainLight.castShadow = true;
+        mainLight.shadow.bias = -0.0005;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+
+        const fadeMat = new THREE.MeshPhysicalMaterial({
+            color: config.colors.sand,
+            roughness: 0.85,
+            metalness: 0.0,
+            transparent: true
+        });
+
+        fadeMat.onBeforeCompile = (shader) => {
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <common>',
+                `#include <common>
+                varying vec3 vWorldPosition;`
+            );
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <common>',
+                `#include <common>
+                varying vec3 vWorldPosition;`
+            );
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <worldpos_vertex>',
+                `#include <worldpos_vertex>
+                vWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+            );
+            shader.fragmentShader = shader.fragmentShader.replace(
+                '#include <dithering_fragment>',
+                `#include <dithering_fragment>
+                float distToCenter = length(vWorldPosition.xz);
+                float fadeRadius = 80.0;
+                float fadeWidth = 20.0;
+                float alpha = 1.0 - smoothstep(fadeRadius, fadeRadius + fadeWidth, distToCenter);
+                gl_FragColor.a *= alpha;
+                if(gl_FragColor.a < 0.01) discard;`
+            );
+        };
+
+        const floorSize = 200;
+        const floorGeo = new THREE.PlaneGeometry(floorSize, floorSize, 100, 100);
+        floorGeo.rotateX(-Math.PI / 2);
+        
+        const floorPos = floorGeo.attributes.position.array;
+        for (let i = 0; i < floorPos.length; i += 3) {
+            const x = floorPos[i] * 0.1;
+            const z = floorPos[i + 2] * 0.1;
+            floorPos[i + 1] = Math.sin(x) * 1.2 + Math.cos(z) * 1.2 + Math.sin(x * 0.4 + z * 0.6) * 2.0;
+        }
+        floorGeo.computeVertexNormals();
+
+        function createFloorTile() {
+            const tile = new THREE.Group();
+            const mesh = new THREE.Mesh(floorGeo, fadeMat);
+            mesh.receiveShadow = true;
+            tile.add(mesh);
+
+            const rockGeo = new THREE.IcosahedronGeometry(1, 1);
+            for(let i=0; i<30; i++) {
+                const rock = new THREE.Mesh(rockGeo, fadeMat);
+                const scale = 2 + Math.random() * 8;
+                rock.scale.set(scale, scale * 0.5, scale);
+                rock.position.set(
+                    (Math.random() - 0.5) * 160,
+                    -1 + (scale * 0.1),
+                    (Math.random() - 0.5) * 160
+                );
+                rock.rotation.set(Math.random(), Math.random(), Math.random());
+                rock.castShadow = true;
+                rock.receiveShadow = true;
+                tile.add(rock);
+            }
+            return tile;
+        }
+
+        const tile1 = createFloorTile();
+        const tile2 = createFloorTile();
+        tile1.position.y = -22;
+        tile2.position.y = -22;
+        scene.add(tile1);
+        scene.add(tile2);
+
+        const waterGeo = new THREE.PlaneGeometry(400, 400, 64, 64);
+        waterGeo.rotateX(-Math.PI / 2);
+        const waterMat = new THREE.MeshPhysicalMaterial({
+            color: config.colors.waterSurface,
+            transparent: true,
+            opacity: 0.3,
+            roughness: 0.1,
+            metalness: 0.2,
+            transmission: 0.9,
+            side: THREE.DoubleSide
+        });
+        const water = new THREE.Mesh(waterGeo, waterMat);
+        water.position.y = 15;
+        water.receiveShadow = true;
+        scene.add(water);
+        const waterOriginalPos = waterGeo.attributes.position.clone();
+
+        const dolphinGroup = new THREE.Group();
+        scene.add(dolphinGroup);
+
+        const swimUniforms = {
+            uPhase: { value: 0 },
+            uAmp: { value: 0.6 }
+        };
+
+        const dolphinMat = new THREE.MeshPhysicalMaterial({
+            roughness: 0.1, 
+            metalness: 0.2,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.1,
+            envMapIntensity: 0.8
+        });
+
+        dolphinMat.onBeforeCompile = (shader) => {
+            shader.uniforms.uPhase = swimUniforms.uPhase;
+            shader.uniforms.uAmp = swimUniforms.uAmp;
+            shader.vertexShader = `
+                uniform float uPhase;
+                uniform float uAmp;
+                varying vec3 vLocalPos;
+                varying vec2 vUvCoord;
+                ${shader.vertexShader}
+            `;
+            shader.vertexShader = shader.vertexShader.replace(
+                '#include <begin_vertex>',
+                `
+                #include <begin_vertex>
+                vLocalPos = position;
+                vUvCoord = uv;
+                float pivotZ = -1.0;
+                float dist = position.z - pivotZ;
+                float bend = dist > 0.0 ? pow(dist / 4.8, 1.5) : -pow(abs(dist) / 2.5, 1.5) * 0.3;
+                float wave = sin(position.z * 1.5 - uPhase) * bend * uAmp;
+                transformed.y += wave;
+                `
+            );
+            shader.fragmentShader = `
+                varying vec3 vLocalPos;
+                varying vec2 vUvCoord;
+                vec3 getBlues8(float t) {
+                    t = clamp(t, 0.0, 1.0);
+                    if (t < 0.125) return vec3(0.968, 0.984, 0.992); 
+                    if (t < 0.25)  return vec3(0.871, 0.922, 0.969); 
+                    if (t < 0.375) return vec3(0.776, 0.859, 0.937); 
+                    if (t < 0.5)   return vec3(0.620, 0.792, 0.882); 
+                    if (t < 0.625) return vec3(0.424, 0.682, 0.839); 
+                    if (t < 0.75)  return vec3(0.259, 0.522, 0.761); 
+                    if (t < 0.875) return vec3(0.129, 0.400, 0.675); 
+                    return vec3(0.031, 0.251, 0.506); 
+                }
+                vec2 hash2(vec2 p) {
+                    return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453);
+                }
+                float voronoi(vec2 p) {
+                    vec2 n = floor(p);
+                    vec2 f = fract(p);
+                    float md = 8.0;
+                    for (int j = -1; j <= 1; j++) {
+                        for (int i = -1; i <= 1; i++) {
+                            vec2 g = vec2(float(i), float(j));
+                            vec2 o = hash2(n + g);
+                            vec2 r = g + o - f;
+                            float d = dot(r, r);
+                            if (d < md) md = d;
+                        }
+                    }
+                    return md;
+                }
+                ${shader.fragmentShader}
+            `.replace(
+                'vec4 diffuseColor = vec4( diffuse, opacity );',
+                `
+                float v = voronoi(vUvCoord * vec2(8.0, 16.0));
+                float lightingInfluence = smoothstep(-1.2, 1.2, vNormal.y);
+                vec3 finalColor = getBlues8(v * lightingInfluence);
+                finalColor += vec3(0.05, 0.12, 0.25) * (1.0 - lightingInfluence);
+                vec4 diffuseColor = vec4( finalColor, opacity );
+                `
+            );
+        };
+
+        const rawProfilePoints = [
+            new THREE.Vector2(0.01, -3.5), new THREE.Vector2(0.07, -3.0),
+            new THREE.Vector2(0.18, -2.7), new THREE.Vector2(0.40, -2.2),
+            new THREE.Vector2(0.65, -1.3), new THREE.Vector2(0.80,  0.0),
+            new THREE.Vector2(0.70,  1.2), new THREE.Vector2(0.45,  2.2),
+            new THREE.Vector2(0.18,  3.3), new THREE.Vector2(0.06,  3.8)
+        ];
+        const spline = new THREE.SplineCurve(rawProfilePoints);
+        const profilePoints = spline.getPoints(50);
+        const bodyGeo = new THREE.LatheGeometry(profilePoints, 64);
+        bodyGeo.rotateX(Math.PI / 2);
+        bodyGeo.scale(0.85, 1.15, 1.0);
+        const body = new THREE.Mesh(bodyGeo, dolphinMat);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        dolphinGroup.add(body);
+
+        const extrudeSettings = { depth: 0.1, bevelEnabled: true, bevelSegments: 8, steps: 2, bevelSize: 0.05, bevelThickness: 0.05, curveSegments: 32 };
+
+        // --- DORSAL FIN: RE-CENTERED ---
+        const dorsalShape = new THREE.Shape();
+        dorsalShape.moveTo(0, 0); 
+        dorsalShape.quadraticCurveTo(-0.1, 0.8, -0.8, 1.3); // Swept tip (pointing back)
+        dorsalShape.quadraticCurveTo(-0.6, 0.7, -0.3, 0.0); // Backward trail
+        dorsalShape.lineTo(0, 0);
+        
+        const dorsalGeo = new THREE.ExtrudeGeometry(dorsalShape, extrudeSettings);
+        dorsalGeo.center(); 
+        dorsalGeo.rotateY(Math.PI / 2); // Align with spine
+        dorsalGeo.translate(0, 1.0, 0.1); // Centered (adjusted from 0.4 to 0.1 for perfect mid-body placement)
+        const dorsalMesh = new THREE.Mesh(dorsalGeo, dolphinMat);
+        dorsalMesh.castShadow = true;
+        dolphinGroup.add(dorsalMesh);
+
+        // --- PECTORAL FINS ---
+        const pecShape = new THREE.Shape();
+        pecShape.moveTo(0, 0); 
+        pecShape.quadraticCurveTo(0.4, 0.0, 1.0, -0.4); 
+        pecShape.quadraticCurveTo(0.8, -0.7, 0.1, -0.4); 
+        pecShape.lineTo(0, 0);
+        
+        const pecLeftGeo = new THREE.ExtrudeGeometry(pecShape, extrudeSettings);
+        const pecLeftMesh = new THREE.Mesh(pecLeftGeo, dolphinMat);
+        pecLeftMesh.position.set(0.4, -0.4, -1.2); 
+        pecLeftMesh.rotation.set(0.3, 0.4, -0.4);
+        pecLeftMesh.castShadow = true;
+        dolphinGroup.add(pecLeftMesh);
+
+        const pecRightMesh = new THREE.Mesh(pecLeftGeo, dolphinMat);
+        pecRightMesh.scale.x = -1;
+        pecRightMesh.position.set(-0.4, -0.4, -1.2);
+        pecRightMesh.rotation.set(0.3, -0.4, 0.4);
+        pecRightMesh.castShadow = true;
+        dolphinGroup.add(pecRightMesh);
+
+        const flukeShape = new THREE.Shape();
+        flukeShape.moveTo(0, 0); flukeShape.bezierCurveTo(0.5, -0.1, 1.2, 0.4, 1.8, 0.7); flukeShape.bezierCurveTo(1.2, 0.7, 0.5, 0.5, 0.1, 0.2); flukeShape.lineTo(0, 0.1); flukeShape.lineTo(-0.1, 0.2); flukeShape.bezierCurveTo(-0.5, 0.5, -1.2, 0.7, -1.8, 0.7); flukeShape.bezierCurveTo(-1.2, 0.4, -0.5, -0.1, 0, 0);
+        const flukeGeo = new THREE.ExtrudeGeometry(flukeShape, extrudeSettings);
+        flukeGeo.center(); flukeGeo.rotateX(Math.PI / 2); flukeGeo.translate(0, 0.05, 3.8);
+        const flukeMesh = new THREE.Mesh(flukeGeo, dolphinMat);
+        flukeMesh.castShadow = true;
+        dolphinGroup.add(flukeMesh);
+
+        function createBubbleTexture() {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+            gradient.addColorStop(0.0, 'rgba(255, 255, 255, 0.1)');
+            gradient.addColorStop(0.8, 'rgba(200, 230, 255, 0.3)');
+            gradient.addColorStop(0.9, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(1.0, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.beginPath(); ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2); ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const bubbleCount = 1200;
+        const bubbleGeo = new THREE.BufferGeometry();
+        const bubblePositions = new Float32Array(bubbleCount * 3);
+        const bubbleSpeeds = new Float32Array(bubbleCount);
+        const bubbleSizes = new Float32Array(bubbleCount);
+        for(let i=0; i<bubbleCount; i++) {
+            bubblePositions[i*3] = (Math.random() - 0.5) * 120;
+            bubblePositions[i*3+1] = (Math.random() - 0.5) * 60 - 10;
+            bubblePositions[i*3+2] = (Math.random() - 0.5) * 120;
+            bubbleSpeeds[i] = 1.0 + Math.random() * 3.0;
+            bubbleSizes[i] = 0.1 + Math.random() * 0.4;
+        }
+        bubbleGeo.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
+        bubbleGeo.setAttribute('size', new THREE.BufferAttribute(bubbleSizes, 1));
+        const bubbleMat = new THREE.PointsMaterial({
+            color: 0xffffff, size: 0.6, map: createBubbleTexture(),
+            transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const bubbles = new THREE.Points(bubbleGeo, bubbleMat);
+        scene.add(bubbles);
+
+        const clock = new THREE.Clock();
+        let globalTime = 0;
+        let swimPhase = 0;
+        let bobPhase = 0;
+        let zoomPhase = 0;
+        const telVel = document.getElementById('tel-vel');
+        const telThrust = document.getElementById('tel-thrust');
+        const telDrag = document.getElementById('tel-drag');
+
+        function updatePhysics(dt) {
+            let thrust = Math.pow(params.frequency, 1.5) * params.amplitude * config.physics.thrustMultiplier;
+            config.physics.thrust = thrust;
+            let v = config.physics.velocity;
+            let drag = 0.5 * (v * v) * params.dragCoeff * config.physics.dragMultiplier;
+            config.physics.dragForce = drag;
+            config.physics.velocity += (thrust - drag) * dt;
+            if(params.frequency === 0) config.physics.velocity *= 0.95; 
+            if(config.physics.velocity < 0) config.physics.velocity = 0;
+            config.physics.scrollOffset += config.physics.velocity * dt;
+            telVel.textContent = config.physics.velocity.toFixed(2);
+            telThrust.textContent = thrust.toFixed(2);
+            telDrag.textContent = drag.toFixed(2);
+        }
+
+        function updateEnvironment(dt) {
+            const waterPosArr = waterGeo.attributes.position.array;
+            const waterOrigArr = waterOriginalPos.array;
+            for(let i=0; i<waterPosArr.length; i+=3) {
+                const x = waterOrigArr[i], z = waterOrigArr[i+2];
+                waterPosArr[i+1] = waterOrigArr[i+1] + Math.sin(x * 0.05 + globalTime * 1.2) * 0.6 + Math.cos((z + config.physics.scrollOffset) * 0.08 + globalTime) * 0.4;
+            }
+            waterGeo.attributes.position.needsUpdate = true;
+            waterGeo.computeVertexNormals();
+
+            const bPosArr = bubbleGeo.attributes.position.array;
+            const forwardMove = config.physics.velocity * dt;
+            for(let i=0; i<bubbleCount; i++) {
+                bPosArr[i*3+2] += forwardMove;
+                if(bPosArr[i*3+2] > 60) bPosArr[i*3+2] -= 120;
+                bPosArr[i*3+1] += bubbleSpeeds[i] * dt;
+                bPosArr[i*3] += Math.sin(globalTime + i) * 0.01;
+                if(bPosArr[i*3+1] > 14) bPosArr[i*3+1] = -21;
+            }
+            bubbleGeo.attributes.position.needsUpdate = true;
+
+            const z1 = -(config.physics.scrollOffset % floorSize);
+            tile1.position.z = z1;
+            tile2.position.z = z1 + floorSize;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            let dt = Math.min(clock.getDelta(), 0.1);
+            globalTime += dt;
+
+            swimPhase += dt * params.frequency * Math.PI;
+            bobPhase += dt * params.frequency * Math.PI * 0.5;
+
+            swimUniforms.uPhase.value = swimPhase;
+            swimUniforms.uAmp.value = params.amplitude;
+
+            // --- Pectoral Fin Animation ---
+            const pecOscillation = Math.sin(swimPhase * 0.5) * params.amplitude * 0.15;
+            pecLeftMesh.rotation.z = -0.4 + pecOscillation;
+            pecRightMesh.rotation.z = 0.4 - pecOscillation;
+
+            dolphinGroup.rotation.x += (-config.physics.velocity * 0.005 - dolphinGroup.rotation.x) * 0.05;
+            const dynamicBob = Math.sin(bobPhase) * params.amplitude * 0.2 * Math.min(config.physics.velocity / 5.0, 1.0);
+            dolphinGroup.position.y += (params.buoyancy + dynamicBob - dolphinGroup.position.y) * 0.1;
+
+            updatePhysics(dt);
+            updateEnvironment(dt);
+            
+            controls.autoRotate = params.autoRotate;
+            controls.autoRotateSpeed = params.rotSpeed;
+
+            if (params.autoZoom) {
+                zoomPhase += dt * 0.5 * params.zoomSpeed;
+                const zoomFactor = (Math.sin(zoomPhase) + 1) / 2;
+                const targetDist = 8 + (zoomFactor * params.zoomDistance);
+                const currentDist = camera.position.length();
+                const diff = targetDist - currentDist;
+                camera.position.setLength(currentDist + diff * 0.05);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        camera.position.set(15, 5, 15);
+        document.getElementById('loading').style.opacity = '0';
+        animate();
+    </script>
+</body>
+</html>
